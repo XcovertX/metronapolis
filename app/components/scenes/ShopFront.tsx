@@ -4,10 +4,15 @@
 import { useLoopState } from "../LoopStateContext";
 
 export default function ShopFront() {
-  const { advanceTime, goToScene, setFlags } = useLoopState();
+  const { advanceTime, goToScene, setFlags, addItem } = useLoopState();
 
   const stealBike = () => {
     setFlags((prev) => ({ ...prev, bikeStolen: true }));
+    addItem({
+      id: "stolen-bike",
+      name: "Stolen Bike",
+      description: "Dented frame, rusted chain, one mismatched pedal.",
+    });
     advanceTime(5);
     goToScene("boy-street");
   };

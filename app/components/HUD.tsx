@@ -12,7 +12,7 @@ function formatTime(totalMinutes: number) {
 }
 
 export default function HUD() {
-  const { timeMinutes } = useLoopState();
+  const { timeMinutes, inventory } = useLoopState();
   const timeStr = formatTime(timeMinutes);
 
   return (
@@ -21,21 +21,83 @@ export default function HUD() {
         position: "fixed",
         top: 12,
         right: 16,
-        padding: "6px 10px",
-        borderRadius: 6,
+        padding: "8px 10px 10px",
+        borderRadius: 8,
         border: "1px solid rgba(0,255,255,0.3)",
         background:
-          "radial-gradient(circle at top left, rgba(0,255,255,0.15), rgba(0,0,0,0.85))",
+          "radial-gradient(circle at top left, rgba(0,255,255,0.18), rgba(0,0,0,0.9))",
         fontFamily: "monospace",
-        fontSize: 14,
-        letterSpacing: 1,
+        fontSize: 13,
+        letterSpacing: 0.5,
         textShadow: "0 0 4px rgba(0,255,255,0.5)",
+        maxWidth: 220,
       }}
     >
-      <div style={{ fontSize: 10, opacity: 0.7, textAlign: "right" }}>
+      <div
+        style={{
+          fontSize: 10,
+          opacity: 0.7,
+          textAlign: "right",
+          marginBottom: 2,
+        }}
+      >
         RETINABAND
       </div>
-      <div>{timeStr}</div>
+      <div
+        style={{
+          fontSize: 18,
+          marginBottom: 6,
+          textAlign: "right",
+        }}
+      >
+        {timeStr}
+      </div>
+
+      <div
+        style={{
+          fontSize: 10,
+          opacity: 0.7,
+          marginBottom: 2,
+        }}
+      >
+        INV
+      </div>
+
+      {inventory.length === 0 ? (
+        <div
+          style={{
+            fontSize: 11,
+            opacity: 0.55,
+          }}
+        >
+          (empty)
+        </div>
+      ) : (
+        <ul
+          style={{
+            listStyle: "none",
+            padding: 0,
+            margin: 0,
+            fontSize: 11,
+            maxHeight: 80,
+            overflow: "hidden",
+          }}
+        >
+          {inventory.map((item) => (
+            <li
+              key={item.id}
+              style={{
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
+                overflow: "hidden",
+              }}
+              title={item.description || item.name}
+            >
+              • {item.name}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
