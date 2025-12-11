@@ -478,8 +478,7 @@ export default function PixiStage({ background = 0x111111 }: PixiStageProps) {
       let idx = 0;
       for (let y = 0; y < GRID_HEIGHT; y++) {
         for (let x = 0; x < GRID_WIDTH; x++) {
-          const tex = textures[idx % textures.length];
-          idx++;
+          const tex = textures[Math.floor(Math.random() * textures.length)];
 
           const sprite = new PIXI.Sprite(tex);
           sprite.anchor.set(0.5, 1); // bottom-center anchor (feet on tile)
