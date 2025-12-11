@@ -2,9 +2,11 @@
 "use client";
 
 import { useLoopState } from "../LoopStateContext";
+import { useDialog } from "../DialogContext";
 
 export default function BoyStreet() {
   const { flags, advanceTime, goToScene } = useLoopState();
+  const { startDialog } = useDialog();
   const { bikeStolen } = flags;
 
   const crossCarelessly = () => {
@@ -14,7 +16,12 @@ export default function BoyStreet() {
 
   const keepWalking = () => {
     advanceTime(5);
-    goToScene("static-corner"); // wrap around the block; still same loop
+    goToScene("static-corner"); // circle the block within the same loop
+  };
+
+  const talkToBoy = () => {
+    // no time advance here; each dialog response has its own timeCost
+    startDialog("boy_intro_1");
   };
 
   return (
@@ -31,33 +38,50 @@ export default function BoyStreet() {
           </p>
           <p>
             You watch him go. For a second you imagine what would&apos;ve
-            happened if that bike never left the rack.
+            happened if that bike never left the rack. Then the moment is gone,
+            chewed up by engines and rain.
           </p>
         </>
       ) : (
         <>
           <p style={{ marginTop: "1rem" }}>
             The kid stands in the middle of the sidewalk, eyes red, cheeks wet,
-            staring at an empty patch of railing like it insulted his mother.
+            staring at an empty patch of railing like it personally betrayed
+            him.
           </p>
           <p>
-            He catches your eye for half a heartbeat. You look away first.
-            Always easier that way.
+            People flow around him like he&apos;s a piece of broken furniture
+            someone forgot to move. He doesn&apos;t seem to notice. Just keeps
+            scanning faces, like one of them might be holding his life between
+            their hands.
           </p>
           <p>
-            “Someone took it,” he mutters to no one in particular. “Wasn&apos;t
-            even worth stealing.”
+            He catches your eye for half a heartbeat. You look away first. It&apos;s
+            easier that way.
           </p>
         </>
       )}
 
-      <p>
-        Traffic roars. Your Retinaband pulses softly at the edge of your vision,
-        digits burning the same five-minute intervals into your skull.
+      <p style={{ marginTop: "1rem" }}>
+        Traffic roars. Your Retinaband pulses softly at the edge of your
+        vision, burning the same five-minute intervals into your skull. The
+        city moves on schedule whether you do or not.
       </p>
 
       <h2 style={{ marginTop: "2rem" }}>What do you do?</h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          marginTop: 8,
+        }}
+      >
+        {bikeStolen && (
+          <button onClick={talkToBoy}>
+            Talk to the boy about his missing bike.
+          </button>
+        )}
         <button onClick={crossCarelessly}>
           Cross the street without waiting for a gap.
         </button>
