@@ -9,10 +9,15 @@ import React, {
 } from "react";
 
 export type SceneId =
-  | "static-corner"
-  | "shop-front"
-  | "boy-street"
-  | "death-reset";
+  | "apt-bedroom"
+  | "apt-living"
+  | "apt-kitchen"
+  | "lobby"
+  | "street"
+  | "cafe"
+  | "alley"
+  | "transit"
+  | "rooftop";
 
 export type InventoryItem = {
   id: string;
@@ -21,8 +26,9 @@ export type InventoryItem = {
 };
 
 type LoopFlags = {
-  bikeStolen: boolean;
-  bikeReturned: boolean;
+  transitUnlocked: boolean;
+  rooftopUnlocked: boolean;
+  // add more as needed later
 };
 
 type LoopStateContextValue = {
@@ -42,18 +48,19 @@ const LoopStateContext = createContext<LoopStateContextValue | undefined>(
   undefined
 );
 
-const INITIAL_TIME = 6 * 60; // 6:00
+// 11:55, so walking to lobby/street can line up with lunch timing
+const INITIAL_TIME = 12 * 60 - 5;
 
 const initialFlags: LoopFlags = {
-  bikeStolen: false,
-  bikeReturned: false,
+  transitUnlocked: false,
+  rooftopUnlocked: false,
 };
 
 const initialInventory: InventoryItem[] = [];
 
 export function LoopStateProvider({ children }: { children: ReactNode }) {
   const [timeMinutes, setTimeMinutes] = useState(INITIAL_TIME);
-  const [scene, setScene] = useState<SceneId>("static-corner");
+  const [scene, setScene] = useState<SceneId>("apt-bedroom");
   const [flags, updateFlags] = useState<LoopFlags>(initialFlags);
   const [inventory, setInventory] = useState<InventoryItem[]>(initialInventory);
 
@@ -82,7 +89,7 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
 
   const resetLoop = () => {
     setTimeMinutes(INITIAL_TIME);
-    setScene("static-corner");
+    setScene("apt-bedroom");
     updateFlags(initialFlags);
     setInventory(initialInventory);
   };

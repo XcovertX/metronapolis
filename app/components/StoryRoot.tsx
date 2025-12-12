@@ -4,12 +4,17 @@
 import { useLoopState } from "./LoopStateContext";
 import HUD from "./HUD";
 import DialogWindow from "./DialogWindow";
-import DebugOverlay from "./DebugOverlay"; 
+import DebugOverlay from "./DebugOverlay";
 
-import StaticCorner from "./scenes/StaticCorner";
-import ShopFront from "./scenes/ShopFront";
-import BoyStreet from "./scenes/BoyStreet";
-import DeathReset from "./scenes/DeathReset";
+import AptBedroom from "./scenes/AptBedroom";
+import AptLiving from "./scenes/AptLiving";
+import AptKitchen from "./scenes/AptKitchen";
+import Lobby from "./scenes/Lobby";
+import Street from "./scenes/Street";
+import Cafe from "./scenes/Cafe";
+import Alley from "./scenes/Alley";
+import Transit from "./scenes/Transit";
+import Rooftop from "./scenes/Rooftop";
 
 export default function StoryRoot() {
   const { scene } = useLoopState();
@@ -24,17 +29,19 @@ export default function StoryRoot() {
         position: "relative",
       }}
     >
-      {/* The HUD stays on top always */}
       <HUD />
       <DebugOverlay />
 
-      {/* Render the active scene */}
-      {scene === "static-corner" && <StaticCorner />}
-      {scene === "shop-front" && <ShopFront />}
-      {scene === "boy-street" && <BoyStreet />}
-      {scene === "death-reset" && <DeathReset />}
+      {scene === "apt-bedroom" && <AptBedroom />}
+      {scene === "apt-living" && <AptLiving />}
+      {scene === "apt-kitchen" && <AptKitchen />}
+      {scene === "lobby" && <Lobby />}
+      {scene === "street" && <Street />}
+      {scene === "cafe" && <Cafe />}
+      {scene === "alley" && <Alley />}
+      {scene === "transit" && <Transit />}
+      {scene === "rooftop" && <Rooftop />}
 
-      {/* ☕ IMPORTANT: DialogWindow overlays ABOVE scenes */}
       <DialogWindow />
     </main>
   );

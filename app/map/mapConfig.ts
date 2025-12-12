@@ -3,29 +3,56 @@
 export type MapNode = {
   id: string;
   label: string;
-  neighbors: string[];
+  neighbors: string[]; // scene IDs it connects to
   unlocked?: (flags: any) => boolean;
 };
 
 export const mapNodes: Record<string, MapNode> = {
-  "static-corner": {
-    id: "static-corner",
-    label: "Corner",
-    neighbors: ["shop-front"],
+  "apt-bedroom": {
+    id: "apt-bedroom",
+    label: "Bedroom",
+    neighbors: ["apt-living"],
   },
-  "shop-front": {
-    id: "shop-front",
-    label: "Shop",
-    neighbors: ["static-corner", "boy-street"],
+  "apt-living": {
+    id: "apt-living",
+    label: "Living",
+    neighbors: ["apt-bedroom", "apt-kitchen", "lobby"],
   },
-  "boy-street": {
-    id: "boy-street",
+  "apt-kitchen": {
+    id: "apt-kitchen",
+    label: "Kitchen",
+    neighbors: ["apt-living"],
+  },
+  lobby: {
+    id: "lobby",
+    label: "Lobby",
+    neighbors: ["apt-living", "street", "rooftop"],
+  },
+  street: {
+    id: "street",
     label: "Street",
-    neighbors: ["shop-front", "death-reset"],
+    neighbors: ["lobby", "cafe", "alley"],
   },
-  "death-reset": {
-    id: "death-reset",
-    label: "Impact",
-    neighbors: ["static-corner"],
+  cafe: {
+    id: "cafe",
+    label: "Café",
+    neighbors: ["street"],
+  },
+  alley: {
+    id: "alley",
+    label: "Alley",
+    neighbors: ["street", "transit"],
+  },
+  transit: {
+    id: "transit",
+    label: "Transit",
+    neighbors: ["alley"],
+    unlocked: (flags) => flags.transitUnlocked === true,
+  },
+  rooftop: {
+    id: "rooftop",
+    label: "Rooftop",
+    neighbors: ["lobby"],
+    unlocked: (flags) => flags.rooftopUnlocked === true,
   },
 };
