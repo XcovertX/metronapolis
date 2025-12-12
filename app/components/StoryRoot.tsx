@@ -5,6 +5,7 @@ import { useLoopState } from "./LoopStateContext";
 import HUD from "./HUD";
 import DialogWindow from "./DialogWindow";
 import DebugOverlay from "./DebugOverlay";
+import ExamineWindow from "./ExamineWindow";
 
 import AptBedroom from "./scenes/AptBedroom";
 import AptLiving from "./scenes/AptLiving";
@@ -43,6 +44,7 @@ export default function StoryRoot() {
       {scene === "rooftop" && <Rooftop />}
 
       <DialogWindow />
+      <ExamineWindow />
     </main>
   );
 }

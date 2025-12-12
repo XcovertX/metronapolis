@@ -1,15 +1,19 @@
 // app/page.tsx
-import { DialogProvider } from "./components/DialogContext";
+"use client";
+
 import { LoopStateProvider } from "./components/LoopStateContext";
+import { DialogProvider } from "./components/DialogContext";
+import { ExamineProvider } from "./components/ExamineContext";
 import StoryRoot from "./components/StoryRoot";
-import { dialogNodes } from "./dialog";
 
 export default function Page() {
   return (
     <LoopStateProvider>
       <DialogProvider>
-        <StoryRoot />
-    </DialogProvider>
+        <ExamineProvider>
+          <StoryRoot />
+        </ExamineProvider>
+      </DialogProvider>
     </LoopStateProvider>
   );
 }

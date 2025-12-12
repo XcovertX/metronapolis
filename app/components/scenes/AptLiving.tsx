@@ -2,9 +2,24 @@
 "use client";
 
 import { useLoopState } from "../LoopStateContext";
+import { useExamine } from "../ExamineContext";
+import { getCatLocation } from "../../game/cat";
 
 export default function AptLiving() {
-  const { advanceTime, goToScene } = useLoopState();
+  const { advanceTime, goToScene, timeMinutes } = useLoopState();
+  const { openExamine } = useExamine();
+
+  const catHere = getCatLocation(timeMinutes) === "apt-living";
+
+  const lookAtCat = () => {
+    openExamine({
+      id: "cat-basic",
+      title: "The Cat",
+      body:
+        "The cat has claimed the couch as sovereign territory, tail flicking " +
+        "in lazy arcs. It looks at you like you’re the intruder here.",
+    });
+  };
 
   return (
     <section>
@@ -14,6 +29,13 @@ export default function AptLiving() {
         holoscreen cycling static ads, a coat thrown over the back of a chair
         days ago or loops ago—you&apos;re not sure anymore.
       </p>
+
+      {catHere && (
+        <p style={{ marginTop: "0.75rem" }}>
+          The cat is sprawled across the couch, occupying the exact spot you
+          were probably aiming for.
+        </p>
+      )}
 
       <h2 style={{ marginTop: "2rem" }}>Where do you go?</h2>
       <div
@@ -48,6 +70,9 @@ export default function AptLiving() {
         >
           Go back to the bedroom.
         </button>
+        {catHere && (
+          <button onClick={lookAtCat}>Look at the cat.</button>
+        )}
       </div>
     </section>
   );
