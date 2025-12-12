@@ -4,6 +4,7 @@
 import { useLoopState } from "./LoopStateContext";
 import HUD from "./HUD";
 import DialogWindow from "./DialogWindow";
+import DebugOverlay from "./DebugOverlay"; 
 
 import StaticCorner from "./scenes/StaticCorner";
 import ShopFront from "./scenes/ShopFront";
@@ -25,6 +26,7 @@ export default function StoryRoot() {
     >
       {/* The HUD stays on top always */}
       <HUD />
+      <DebugOverlay />
 
       {/* Render the active scene */}
       {scene === "static-corner" && <StaticCorner />}
