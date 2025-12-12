@@ -1,26 +1,62 @@
 // app/components/scenes/AptKitchen.tsx
 "use client";
 
+import { useEffect } from "react";
 import { useLoopState } from "../LoopStateContext";
 import { useExamine } from "../ExamineContext";
+import { useOptions } from "../OptionsContext";
 import { getCatLocation } from "../../game/cat";
 
 export default function AptKitchen() {
   const { advanceTime, goToScene, timeMinutes } = useLoopState();
   const { openExamine } = useExamine();
+  const { setOptions, clearOptions } = useOptions();
 
   const catHere = getCatLocation(timeMinutes) === "apt-kitchen";
 
-  const lookAtCat = () => {
-    openExamine({
-      id: "cat-basic",
-      title: "The Cat",
-      body:
-        "The cat is posted by the fridge like a tiny, judgmental sentinel. " +
-        "Its ears twitch every time the compressor kicks, like it’s waiting " +
-        "for the machine to cough up something better than what you usually eat.",
-    });
-  };
+  useEffect(() => {
+    const toLiving = () => {
+      advanceTime(5);
+      goToScene("apt-living");
+    };
+    const lookAtCat = () => {
+      openExamine({
+        id: "cat-basic",
+        title: "The Cat",
+        body:
+          "The cat is posted by the fridge like a tiny, judgmental sentinel. " +
+          "Its ears twitch every time the compressor kicks, like it’s waiting " +
+          "for the machine to cough up something better than what you usually eat.",
+      });
+    };
+
+    const opts = [
+      {
+        id: "kitchen-living",
+        label: "Head back to the living room.",
+        onSelect: toLiving,
+      },
+      ...(catHere
+        ? [
+            {
+              id: "kitchen-cat",
+              label: "Look at the cat.",
+              onSelect: lookAtCat,
+            },
+          ]
+        : []),
+    ];
+
+    setOptions(opts);
+    return () => clearOptions();
+  }, [
+    advanceTime,
+    goToScene,
+    openExamine,
+    setOptions,
+    clearOptions,
+    catHere,
+  ]);
 
   return (
     <section>
@@ -37,28 +73,7 @@ export default function AptKitchen() {
           ambiance and not the possibility of food.
         </p>
       )}
-
-      <h2 style={{ marginTop: "2rem" }}>What now?</h2>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          marginTop: 8,
-        }}
-      >
-        <button
-          onClick={() => {
-            advanceTime(5);
-            goToScene("apt-living");
-          }}
-        >
-          Head back to the living room.
-        </button>
-        {catHere && (
-          <button onClick={lookAtCat}>Look at the cat.</button>
-        )}
-      </div>
     </section>
   );
 }
+

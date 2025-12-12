@@ -6,6 +6,7 @@ import HUD from "./HUD";
 import DialogWindow from "./DialogWindow";
 import DebugOverlay from "./DebugOverlay";
 import ExamineWindow from "./ExamineWindow";
+import OptionsPanel from "./OptionsPanel";
 
 import AptBedroom from "./scenes/AptBedroom";
 import AptLiving from "./scenes/AptLiving";
@@ -45,6 +46,7 @@ export default function StoryRoot() {
 
       <DialogWindow />
       <ExamineWindow />
+      <OptionsPanel />
     </main>
   );
 }

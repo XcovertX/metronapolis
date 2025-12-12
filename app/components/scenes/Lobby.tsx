@@ -1,27 +1,42 @@
 // app/components/scenes/Lobby.tsx
 "use client";
 
+import { useEffect } from "react";
 import { useLoopState } from "../LoopStateContext";
 import { useDialog } from "../DialogContext";
+import { useOptions } from "../OptionsContext";
 
 export default function Lobby() {
   const { advanceTime, goToScene } = useLoopState();
   const { startDialog } = useDialog();
+  const { setOptions, clearOptions } = useOptions();
 
-  const goStreet = () => {
-    advanceTime(5);
-    goToScene("street");
-  };
+  useEffect(() => {
+    const goStreet = () => {
+      advanceTime(5);
+      goToScene("street");
+    };
+    const goApartment = () => {
+      advanceTime(5);
+      goToScene("apt-living");
+    };
+    const talkToRhea = () => {
+      startDialog("rhea.intro.1");
+    };
 
-  const goApartment = () => {
-    advanceTime(5);
-    goToScene("apt-living");
-  };
+    const opts = [
+      { id: "lobby-talk-rhea", label: "Talk to Rhea.", onSelect: talkToRhea },
+      { id: "lobby-street", label: "Step out onto the street.", onSelect: goStreet },
+      {
+        id: "lobby-apt",
+        label: "Go back up to the apartment.",
+        onSelect: goApartment,
+      },
+    ];
 
-  const talkToRhea = () => {
-    // no time advance here; responses handle time
-    startDialog("rhea.intro.1");
-  };
+    setOptions(opts);
+    return () => clearOptions();
+  }, [advanceTime, goToScene, startDialog, setOptions, clearOptions]);
 
   return (
     <section>
@@ -35,20 +50,6 @@ export default function Lobby() {
         the metal, a paper cup cooling in her hand. She watches you like she&apos;s
         already seen this part.
       </p>
-
-      <h2 style={{ marginTop: "2rem" }}>What do you do?</h2>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          marginTop: 8,
-        }}
-      >
-        <button onClick={talkToRhea}>Talk to Rhea.</button>
-        <button onClick={goStreet}>Step out onto the street.</button>
-        <button onClick={goApartment}>Go back up to the apartment.</button>
-      </div>
     </section>
   );
 }
