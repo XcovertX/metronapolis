@@ -5,9 +5,19 @@ import { useLoopState } from "../LoopStateContext";
 import { useDialog } from "../DialogContext";
 
 export default function BoyStreet() {
-  const { flags, advanceTime, goToScene } = useLoopState();
+  const {
+    flags,
+    advanceTime,
+    goToScene,
+    inventory,
+    removeItem,
+    setFlags,
+  } = useLoopState();
   const { startDialog } = useDialog();
-  const { bikeStolen } = flags;
+
+  const { bikeStolen, bikeReturned } = flags;
+
+  const hasStolenBike = inventory.some((item) => item.id === "stolen-bike");
 
   const crossCarelessly = () => {
     advanceTime(5);
@@ -16,19 +26,33 @@ export default function BoyStreet() {
 
   const keepWalking = () => {
     advanceTime(5);
-    goToScene("static-corner"); // circle the block within the same loop
+    goToScene("static-corner");
   };
 
   const talkToBoy = () => {
-    // no time advance here; each dialog response has its own timeCost
-    startDialog("boy_intro_1");
+    startDialog("boy.intro.1");
+  };
+
+  const returnBike = () => {
+    // Give the bike back in this loop:
+    removeItem("stolen-bike");
+    setFlags((prev) => ({
+      ...prev,
+      bikeReturned: true,
+      bikeStolen: false,
+    }));
+    advanceTime(5);
+    // Stay on the same scene; the text and options will update based on flags
+    goToScene("boy-street");
   };
 
   return (
     <section>
       <h1>Relay Street – Midday Crowd</h1>
 
-      {!bikeStolen ? (
+      {/* WORLD TEXT BRANCHES BASED ON FLAGS + INVENTORY */}
+
+      {!bikeStolen && !bikeReturned && (
         <>
           <p style={{ marginTop: "1rem" }}>
             The crowd parts just enough for the kid to rocket past you on his
@@ -42,7 +66,9 @@ export default function BoyStreet() {
             chewed up by engines and rain.
           </p>
         </>
-      ) : (
+      )}
+
+      {bikeStolen && !bikeReturned && hasStolenBike && (
         <>
           <p style={{ marginTop: "1rem" }}>
             The kid stands in the middle of the sidewalk, eyes red, cheeks wet,
@@ -50,23 +76,47 @@ export default function BoyStreet() {
             him.
           </p>
           <p>
-            People flow around him like he&apos;s a piece of broken furniture
-            someone forgot to move. He doesn&apos;t seem to notice. Just keeps
-            scanning faces, like one of them might be holding his life between
-            their hands.
+            The weight of the stolen bike at your side suddenly feels heavier
+            than metal has any right to be. You could keep it. Or you could
+            decide to be a different kind of person, just for this loop.
+          </p>
+        </>
+      )}
+
+      {bikeStolen && !bikeReturned && !hasStolenBike && (
+        <>
+          <p style={{ marginTop: "1rem" }}>
+            The kid stands in the middle of the sidewalk, eyes raw, scanning
+            the racks like the bike might respawn if he stares hard enough.
           </p>
           <p>
-            He catches your eye for half a heartbeat. You look away first. It&apos;s
-            easier that way.
+            You already ditched the evidence somewhere else. All that&apos;s
+            left here is the echo of a bad decision.
+          </p>
+        </>
+      )}
+
+      {bikeReturned && (
+        <>
+          <p style={{ marginTop: "1rem" }}>
+            The kid&apos;s still here, but now he&apos;s straddling the bike,
+            fingers tight on the handlebars like he expects the street itself to
+            yank it away again.
+          </p>
+          <p>
+            He keeps glancing your way, confusion and gratitude wrestling in his
+            face. You&apos;re not sure which one you deserve.
           </p>
         </>
       )}
 
       <p style={{ marginTop: "1rem" }}>
-        Traffic roars. Your Retinaband pulses softly at the edge of your
-        vision, burning the same five-minute intervals into your skull. The
-        city moves on schedule whether you do or not.
+        Traffic roars. Your Retinaband pulses softly at the edge of your vision,
+        burning the same five-minute intervals into your skull. The city moves
+        on schedule whether you do or not.
       </p>
+
+      {/* OPTIONS CHANGE BASED ON ITEMS + FLAGS */}
 
       <h2 style={{ marginTop: "2rem" }}>What do you do?</h2>
       <div
@@ -77,11 +127,20 @@ export default function BoyStreet() {
           marginTop: 8,
         }}
       >
-        {bikeStolen && (
-          <button onClick={talkToBoy}>
-            Talk to the boy about his missing bike.
+        {/* Can only return the bike if: you stole it, haven't returned it yet, and still have it */}
+        {bikeStolen && !bikeReturned && hasStolenBike && (
+          <button onClick={returnBike}>
+            Wheel the bike back to him.
           </button>
         )}
+
+        {/* Talking to the boy only really makes sense if the bike was involved */}
+        {(bikeStolen || bikeReturned) && (
+          <button onClick={talkToBoy}>
+            Talk to the boy.
+          </button>
+        )}
+
         <button onClick={crossCarelessly}>
           Cross the street without waiting for a gap.
         </button>

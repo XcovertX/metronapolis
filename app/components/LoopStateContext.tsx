@@ -22,6 +22,7 @@ export type InventoryItem = {
 
 type LoopFlags = {
   bikeStolen: boolean;
+  bikeReturned: boolean;
 };
 
 type LoopStateContextValue = {
@@ -41,10 +42,11 @@ const LoopStateContext = createContext<LoopStateContextValue | undefined>(
   undefined
 );
 
-const INITIAL_TIME = 12 * 60 - 5; // 11:55
+const INITIAL_TIME = 6 * 60; // 6:00
 
 const initialFlags: LoopFlags = {
   bikeStolen: false,
+  bikeReturned: false,
 };
 
 const initialInventory: InventoryItem[] = [];
@@ -69,7 +71,6 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
 
   const addItem = (item: InventoryItem) => {
     setInventory((prev) => {
-      // Avoid duplicates by id
       if (prev.some((i) => i.id === item.id)) return prev;
       return [...prev, item];
     });

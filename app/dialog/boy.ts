@@ -1,40 +1,42 @@
+// app/dialog/boy.ts
 import { DialogNode } from "../components/DialogContext";
 
-export const dialogNodes: Record<string, DialogNode> = {
-  boy_intro_1: {
-    id: "boy_intro_1",
+// You can prefix IDs with "boy." to avoid collisions
+export const boyDialogNodes: Record<string, DialogNode> = {
+  "boy.intro.1": {
+    id: "boy.intro.1",
     npc: "Boy",
     text: "Hey mister… did you see a bike out here? I swear I locked it.",
     responses: [
       {
         label: "Lie: Nope. Haven’t seen anything.",
         timeCost: 1,
-        next: "boy_intro_2",
+        next: "boy.intro.2",
       },
       {
         label: "Tell the truth: I took it.",
         timeCost: 1,
-        next: "boy_accuse_1",
+        next: "boy.accuse.1",
       },
       {
         label: "Deflect: Why do you need a bike?",
         timeCost: 2,
-        next: "boy_deflect_1",
+        next: "boy.deflect.1",
       },
     ],
   },
 
-  boy_intro_2: {
-    id: "boy_intro_2",
+  "boy.intro.2": {
+    id: "boy.intro.2",
     npc: "Boy",
     text: "Okay… thanks I guess.",
     responses: [
-      { label: "Walk away.", timeCost: 1 }
+      { label: "Walk away.", timeCost: 1 },
     ],
   },
 
-  boy_accuse_1: {
-    id: "boy_accuse_1",
+  "boy.accuse.1": {
+    id: "boy.accuse.1",
     npc: "Boy",
     text: "You WHAT?! Why would you do that?!",
     responses: [
@@ -49,8 +51,8 @@ export const dialogNodes: Record<string, DialogNode> = {
     ],
   },
 
-  boy_deflect_1: {
-    id: "boy_deflect_1",
+  "boy.deflect.1": {
+    id: "boy.deflect.1",
     npc: "Boy",
     text: "I deliver meds for the shop. Without my bike I'm fired.",
     responses: [

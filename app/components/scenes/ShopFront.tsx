@@ -7,7 +7,7 @@ export default function ShopFront() {
   const { advanceTime, goToScene, setFlags, addItem } = useLoopState();
 
   const stealBike = () => {
-    setFlags((prev) => ({ ...prev, bikeStolen: true }));
+    setFlags((prev) => ({ ...prev, bikeStolen: true, bikeReturned: false }));
     addItem({
       id: "stolen-bike",
       name: "Stolen Bike",
