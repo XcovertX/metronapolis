@@ -7,7 +7,7 @@ import { dialogNodes } from "./dialog";
 export default function Page() {
   return (
     <LoopStateProvider>
-      <DialogProvider nodes={dialogNodes}>
+      <DialogProvider>
         <StoryRoot />
     </DialogProvider>
     </LoopStateProvider>

@@ -3,6 +3,7 @@
 
 import { createContext, useContext, useState, ReactNode } from "react";
 import { useLoopState } from "./LoopStateContext";
+import { dialogNodes } from "../dialog"; // ⬅️ central registry (boy.ts, malik.ts, etc.)
 
 export type DialogConditionContext = {
   flags: any;
@@ -43,13 +44,7 @@ function checkCondition(
   return condition(ctx);
 }
 
-export function DialogProvider({
-  children,
-  nodes,
-}: {
-  children: ReactNode;
-  nodes: Record<string, DialogNode>;
-}) {
+export function DialogProvider({ children }: { children: ReactNode }) {
   const [activeNode, setActiveNode] = useState<DialogNode | null>(null);
 
   const { advanceTime, setFlags, flags, inventory, timeMinutes } = useLoopState();
@@ -60,6 +55,8 @@ export function DialogProvider({
     timeMinutes,
   };
 
+  const nodes: Record<string, DialogNode> = dialogNodes;
+
   const startDialog = (nodeId: string) => {
     const node = nodes[nodeId];
 
@@ -68,7 +65,7 @@ export function DialogProvider({
       return;
     }
 
-    // If the node has a condition and it fails, don't start the dialog
+    // Node-level condition
     if (!checkCondition(node.condition, dialogCtx)) {
       console.warn(`Dialog node "${nodeId}" blocked by condition`);
       return;
@@ -78,7 +75,7 @@ export function DialogProvider({
   };
 
   const chooseResponse = (response: DialogResponse) => {
-    // Extra safety: if response condition fails, ignore click
+    // Response-level condition (safety)
     if (!checkCondition(response.condition, dialogCtx)) {
       console.warn("Dialog response blocked by condition");
       return;
@@ -99,7 +96,6 @@ export function DialogProvider({
         return;
       }
 
-      // Check next node's condition too
       if (!checkCondition(nextNode.condition, dialogCtx)) {
         console.warn(`Dialog node "${response.next}" blocked by condition`);
         setActiveNode(null);

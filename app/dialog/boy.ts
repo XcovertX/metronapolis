@@ -1,7 +1,7 @@
 // app/dialog/boy.ts
 import { DialogNode } from "../components/DialogContext";
+import { hasItem, flagEquals } from "./conditions";
 
-// You can prefix IDs with "boy." to avoid collisions
 export const boyDialogNodes: Record<string, DialogNode> = {
   "boy.intro.1": {
     id: "boy.intro.1",
@@ -14,50 +14,65 @@ export const boyDialogNodes: Record<string, DialogNode> = {
         next: "boy.intro.2",
       },
       {
-        label: "Tell the truth: I took it.",
+        label: "I… actually have your bike.",
         timeCost: 1,
-        next: "boy.accuse.1",
+        next: "boy.return.1",
+        condition: hasItem("stolen-bike"),
       },
       {
-        label: "Deflect: Why do you need a bike?",
+        label: "Why do you need a bike?",
         timeCost: 2,
         next: "boy.deflect.1",
       },
     ],
   },
 
-  "boy.intro.2": {
-    id: "boy.intro.2",
+  "boy.return.1": {
+    id: "boy.return.1",
     npc: "Boy",
-    text: "Okay… thanks I guess.",
-    responses: [
-      { label: "Walk away.", timeCost: 1 },
-    ],
-  },
-
-  "boy.accuse.1": {
-    id: "boy.accuse.1",
-    npc: "Boy",
-    text: "You WHAT?! Why would you do that?!",
+    text: "Wait—what? Are you messing with me?",
     responses: [
       {
-        label: "Regret: I shouldn't have.",
+        label: "Give him the bike back.",
         timeCost: 2,
+        next: "boy.return.2",
+        setFlags: (prev) => ({
+          ...prev,
+          bikeReturned: true,
+          bikeStolen: false,
+        }),
       },
       {
-        label: "Cold: You shouldn’t leave things unattended.",
-        timeCost: 2,
+        label: "Forget it.",
+        timeCost: 1,
+        next: "boy.intro.2",
       },
     ],
   },
 
-  "boy.deflect.1": {
-    id: "boy.deflect.1",
+  "boy.return.2": {
+    id: "boy.return.2",
     npc: "Boy",
-    text: "I deliver meds for the shop. Without my bike I'm fired.",
+    text: "You… actually brought it back. I thought—never mind. Thanks.",
     responses: [
-      { label: "Sympathize.", timeCost: 2 },
-      { label: "Walk away.", timeCost: 1 },
+      {
+        label: "Don’t make a big deal out of it.",
+        timeCost: 2,
+      },
+    ],
+  },
+
+  // Example of flag-based variation later
+  "boy.later.1": {
+    id: "boy.later.1",
+    npc: "Boy",
+    text: "Hey… thanks for earlier. I made the delivery on time.",
+    condition: flagEquals("bikeReturned", true),
+    responses: [
+      {
+        label: "Don’t get used to it.",
+        timeCost: 1,
+      },
     ],
   },
 };
