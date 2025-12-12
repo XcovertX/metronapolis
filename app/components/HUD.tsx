@@ -2,6 +2,7 @@
 "use client";
 
 import { useLoopState } from "./LoopStateContext";
+import MiniMap from "./MiniMap";
 
 function formatTime(totalMinutes: number) {
   const hours = Math.floor(totalMinutes / 60);
@@ -98,6 +99,7 @@ export default function HUD() {
           ))}
         </ul>
       )}
+       <MiniMap />
     </div>
   );
 }
