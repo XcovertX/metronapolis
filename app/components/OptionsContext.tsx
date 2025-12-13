@@ -9,10 +9,18 @@ import {
   useCallback,
 } from "react";
 
+export type OptionKind = "move" | "action";
+
 export type PlayerOption = {
   id: string;
   label: string;
   onSelect: () => void;
+
+  /** "move" shows on the RIGHT panel, "action" shows on the LEFT panel */
+  kind?: OptionKind;
+
+  /** optional - useful later for keybinds / UI icons */
+  dir?: "n" | "e" | "s" | "w" | "up" | "down";
 };
 
 type OptionsContextValue = {
@@ -21,9 +29,7 @@ type OptionsContextValue = {
   clearOptions: () => void;
 };
 
-const OptionsContext = createContext<OptionsContextValue | undefined>(
-  undefined
-);
+const OptionsContext = createContext<OptionsContextValue | undefined>(undefined);
 
 export function OptionsProvider({ children }: { children: ReactNode }) {
   const [options, setOptionsState] = useState<PlayerOption[]>([]);

@@ -4,7 +4,9 @@
 import BaseScene from "./BaseScene";
 import { useLoopState } from "../LoopStateContext";
 import { useExamine } from "../ExamineContext";
-import { getCatLocation } from "../../game/cat";
+import { getCatLocation } from "../../game/npcs/cat"; 
+import { TIME } from "../../game/timeRules";
+import type { PlayerOption } from "../OptionsContext";
 
 export default function AptBedroom() {
   const { advanceTime, goToScene, timeMinutes, flags, setFlags } = useLoopState();
@@ -14,16 +16,15 @@ export default function AptBedroom() {
   const showWakeText = !flags.hasWokenUp;
 
   const goLiving = () => {
-    // Mark wake text as "consumed" only when leaving bedroom the first time
     if (!flags.hasWokenUp) {
       setFlags((prev) => ({ ...prev, hasWokenUp: true }));
     }
-
-    advanceTime(5);
+    advanceTime(TIME.DEFAULT_ACTION);
     goToScene("apt-living");
   };
 
   const lookAtCat = () => {
+    advanceTime(TIME.DEFAULT_ACTION); // ✅ keep rule: every action costs time
     openExamine({
       id: "cat-basic",
       title: "The Cat",
@@ -45,28 +46,30 @@ export default function AptBedroom() {
     description.push("The cat is here—still, alert, watching you from the edge of the light.");
   }
 
-  const options = [
+  const options: PlayerOption[] = [
     {
       id: "bedroom-to-living",
+      kind: "move",
+      dir: "e",
       label: "Step into the living room.",
       onSelect: goLiving,
     },
-    ...(catHere
-      ? [
-          {
-            id: "bedroom-look-cat",
-            label: "Look at the cat.",
-            onSelect: lookAtCat,
-          },
-        ]
-      : []),
   ];
+
+  if (catHere) {
+    options.push({
+      id: "bedroom-look-cat",
+      kind: "action",
+      label: "Look at the cat.",
+      onSelect: lookAtCat,
+    });
+  }
 
   return (
     <BaseScene
       id="apt-bedroom"
       title="Apartment – Bedroom"
-      background="/rooms/apt-bedroom.png"
+      // background="/rooms/apt-bedroom.png"
       description={description}
       options={options}
     />

@@ -5,7 +5,8 @@ import { useEffect } from "react";
 import { useLoopState } from "../LoopStateContext";
 import { useExamine } from "../ExamineContext";
 import { useOptions } from "../OptionsContext";
-import { getCatLocation } from "../../game/cat";
+import { getCatLocation } from "../../game/npcs/cat";
+import { TIME } from "@/app/game/timeRules";
 
 export default function AptKitchen() {
   const { advanceTime, goToScene, timeMinutes } = useLoopState();
@@ -16,7 +17,7 @@ export default function AptKitchen() {
 
   useEffect(() => {
     const toLiving = () => {
-      advanceTime(5);
+      advanceTime(TIME.DEFAULT_ACTION);
       goToScene("apt-living");
     };
     const lookAtCat = () => {

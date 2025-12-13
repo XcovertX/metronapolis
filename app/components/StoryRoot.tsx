@@ -2,48 +2,50 @@
 "use client";
 
 import { useLoopState } from "./LoopStateContext";
+import type { SceneId } from "../game/sceneGraph";
+
 import HUD from "./HUD";
 import DialogWindow from "./DialogWindow";
-import DebugOverlay from "./DebugOverlay";
 import ExamineWindow from "./ExamineWindow";
 import OptionsPanel from "./OptionsPanel";
+import DebugOverlay from "./DebugOverlay";
 
+// Authored scenes
 import AptBedroom from "./scenes/AptBedroom";
-import AptLiving from "./scenes/AptLiving";
-import AptKitchen from "./scenes/AptKitchen";
-import Lobby from "./scenes/Lobby";
-import Street from "./scenes/Street";
-import Cafe from "./scenes/Cafe";
-import Alley from "./scenes/Alley";
-import Transit from "./scenes/Transit";
-import Rooftop from "./scenes/Rooftop";
+// import AptLiving from "./scenes/AptLiving";
+// import Lobby from "./scenes/Lobby";
+// etc — add these as you flesh them out
+
+// Generic fallback scene
+import GraphScene from "./scenes/GraphScene";
+
+const AUTHORED_SCENES: Partial<Record<SceneId, React.FC>> = {
+  "apt-bedroom": AptBedroom,
+  // "apt-living": AptLiving,
+  // "lobby": Lobby,
+};
 
 export default function StoryRoot() {
   const { scene } = useLoopState();
+
+  const SceneComponent = AUTHORED_SCENES[scene] ?? GraphScene;
 
   return (
     <main
       style={{
         minHeight: "100vh",
-        padding: "3rem 1.5rem",
-        maxWidth: 720,
-        margin: "0 auto",
         position: "relative",
+        overflow: "hidden",
       }}
     >
+      {/* Global overlays */}
       <HUD />
       <DebugOverlay />
 
-      {scene === "apt-bedroom" && <AptBedroom />}
-      {scene === "apt-living" && <AptLiving />}
-      {scene === "apt-kitchen" && <AptKitchen />}
-      {scene === "lobby" && <Lobby />}
-      {scene === "street" && <Street />}
-      {scene === "cafe" && <Cafe />}
-      {scene === "alley" && <Alley />}
-      {scene === "transit" && <Transit />}
-      {scene === "rooftop" && <Rooftop />}
+      {/* Scene */}
+      <SceneComponent />
 
+      {/* UI layers */}
       <DialogWindow />
       <ExamineWindow />
       <OptionsPanel />

@@ -1,5 +1,7 @@
+
+
 // app/game/cat.ts
-import type { SceneId } from "../components/LoopStateContext";
+import type { SceneId } from "../sceneGraph";
 
 /**
  * Returns which room the cat is currently in, based on loop time.
@@ -22,4 +24,8 @@ export function getCatLocation(timeMinutes: number): SceneId | null {
     return "apt-kitchen";
   }
   return null;
+}
+
+export function isCatHere(timeMinutes: number, sceneId: SceneId): boolean {
+  return getCatLocation(timeMinutes) === sceneId;
 }

@@ -1,29 +1,43 @@
 // app/components/DialogContext.tsx
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { useLoopState } from "./LoopStateContext";
-import { dialogNodes } from "../dialog"; // ⬅️ central registry (boy.ts, malik.ts, etc.)
 
 export type DialogConditionContext = {
   flags: any;
   inventory: any[];
   timeMinutes: number;
+  npcState?: any;
 };
+
+/**
+ * IMPORTANT:
+ * Do NOT store functions inside dialog node objects if those nodes are imported into Client Components,
+ * because Next can complain about function serialization.
+ *
+ * Use conditionId instead (string), and resolve to a function via conditionRegistry.
+ */
+export type ConditionId = string;
 
 export type DialogResponse = {
   label: string;
   timeCost: number;
   next?: string;
+
+  // State mutation
   setFlags?: (prev: any) => any;
-  condition?: (ctx: DialogConditionContext) => boolean;
+
+  // Optional condition
+  conditionId?: ConditionId;
 };
 
 export type DialogNode = {
   id: string;
   npc: string;
   text: string;
-  condition?: (ctx: DialogConditionContext) => boolean;
+
+  conditionId?: ConditionId;
   responses: DialogResponse[];
 };
 
@@ -34,89 +48,88 @@ type DialogContextValue = {
   endDialog: () => void;
 };
 
-const DialogContext = createContext<DialogContextValue | undefined>(undefined);
+/**
+ * Registry of condition functions (client-side).
+ * Add to this as you need, but keep ids stable.
+ */
+const conditionRegistry: Record<ConditionId, (ctx: DialogConditionContext) => boolean> = {
+  // examples:
+  // "has:keycard": (ctx) => ctx.inventory.includes("maintenanceKeycard"),
+  // "time:before_1220": (ctx) => ctx.timeMinutes <= 12 * 60 + 20,
+};
 
-function checkCondition(
-  condition: ((ctx: DialogConditionContext) => boolean) | undefined,
-  ctx: DialogConditionContext
-): boolean {
-  if (!condition) return true;
-  return condition(ctx);
+function checkCondition(conditionId: ConditionId | undefined, ctx: DialogConditionContext): boolean {
+  if (!conditionId) return true;
+  const fn = conditionRegistry[conditionId];
+  if (!fn) {
+    // Unknown condition => fail closed (safer) OR true (looser). Choose one.
+    console.warn(`Dialog condition "${conditionId}" not found`);
+    return false;
+  }
+  return fn(ctx);
 }
 
-export function DialogProvider({ children }: { children: ReactNode }) {
-  const [activeNode, setActiveNode] = useState<DialogNode | null>(null);
+const DialogContext = createContext<DialogContextValue | undefined>(undefined);
 
-  const { advanceTime, setFlags, flags, inventory, timeMinutes } = useLoopState();
+export function DialogProvider({
+  children,
+  nodes,
+}: {
+  children: ReactNode;
+  nodes: Record<string, DialogNode>;
+}) {
+  const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
 
-  const dialogCtx: DialogConditionContext = {
-    flags,
-    inventory,
-    timeMinutes,
-  };
+  const { advanceTime, setFlags, flags, inventory, timeMinutes, npcState } = useLoopState();
 
-  const nodes: Record<string, DialogNode> = dialogNodes;
+  const activeNode = useMemo(() => {
+    if (!activeNodeId) return null;
+    return nodes[activeNodeId] ?? null;
+  }, [activeNodeId, nodes]);
 
   const startDialog = (nodeId: string) => {
-    const node = nodes[nodeId];
-
-    if (!node) {
+    if (!nodes[nodeId]) {
       console.warn(`Dialog node "${nodeId}" not found`);
+      setActiveNodeId(null);
       return;
     }
-
-    // Node-level condition
-    if (!checkCondition(node.condition, dialogCtx)) {
-      console.warn(`Dialog node "${nodeId}" blocked by condition`);
-      return;
-    }
-
-    setActiveNode(node);
+    setActiveNodeId(nodeId);
   };
 
+  const endDialog = () => setActiveNodeId(null);
+
   const chooseResponse = (response: DialogResponse) => {
-    // Response-level condition (safety)
-    if (!checkCondition(response.condition, dialogCtx)) {
-      console.warn("Dialog response blocked by condition");
-      return;
-    }
+    const ctx: DialogConditionContext = { flags, inventory, timeMinutes, npcState };
+
+    // if response is condition-gated, enforce it
+    if (!checkCondition(response.conditionId, ctx)) return;
 
     advanceTime(response.timeCost);
 
     if (response.setFlags) {
-      setFlags((prev: any) => response.setFlags!(prev));
+      setFlags((prev) => response.setFlags!(prev));
     }
 
     if (response.next) {
-      const nextNode = nodes[response.next];
-
-      if (!nextNode) {
+      if (!nodes[response.next]) {
         console.warn(`Dialog node "${response.next}" not found`);
-        setActiveNode(null);
+        setActiveNodeId(null);
         return;
       }
-
-      if (!checkCondition(nextNode.condition, dialogCtx)) {
-        console.warn(`Dialog node "${response.next}" blocked by condition`);
-        setActiveNode(null);
-        return;
-      }
-
-      setActiveNode(nextNode);
+      setActiveNodeId(response.next);
     } else {
-      setActiveNode(null);
+      setActiveNodeId(null);
     }
   };
 
-  const endDialog = () => setActiveNode(null);
+  const value: DialogContextValue = {
+    activeNode,
+    startDialog,
+    chooseResponse,
+    endDialog,
+  };
 
-  return (
-    <DialogContext.Provider
-      value={{ activeNode, startDialog, chooseResponse, endDialog }}
-    >
-      {children}
-    </DialogContext.Provider>
-  );
+  return <DialogContext.Provider value={value}>{children}</DialogContext.Provider>;
 }
 
 export function useDialog() {

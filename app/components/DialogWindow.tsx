@@ -1,219 +1,107 @@
 // app/components/DialogWindow.tsx
 "use client";
 
-import { useDialog, type DialogConditionContext } from "./DialogContext";
-import { useLoopState } from "./LoopStateContext";
-
-function checkCondition(
-  condition: ((ctx: DialogConditionContext) => boolean) | undefined,
-  ctx: DialogConditionContext
-): boolean {
-  if (!condition) return true;
-  return condition(ctx);
-}
+import { useDialog } from "./DialogContext";
 
 export default function DialogWindow() {
   const { activeNode, chooseResponse, endDialog } = useDialog();
-  const { flags, inventory, timeMinutes } = useLoopState();
 
+  // ✅ No hooks below this point, so early return is safe
   if (!activeNode) return null;
 
-  const dialogCtx: DialogConditionContext = {
-    flags,
-    inventory,
-    timeMinutes,
-  };
-
-  // If node condition fails, hide silently
-  if (!checkCondition(activeNode.condition, dialogCtx)) {
-    return null;
-  }
-
-  const visibleResponses = activeNode.responses.filter((response) =>
-    checkCondition(response.condition, dialogCtx)
-  );
+  const visibleResponses = activeNode.responses; // conditions enforced in DialogContext.chooseResponse
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.6)",
-        zIndex: 55,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-      onClick={endDialog} // click on backdrop closes dialog
-    >
+    <>
+      {/* Portrait row */}
       <div
         style={{
-          minWidth: 320,
-          maxWidth: 460,
-          padding: "1.25rem 1.5rem",
-          borderRadius: 8,
-          border: "1px solid rgba(0,255,255,0.4)",
-          background: "rgba(0,0,0,0.95)",
-          color: "#f5f5f5",
-          fontFamily: "system-ui, sans-serif",
-          boxShadow: "0 0 12px rgba(0,0,0,0.9)",
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 190,
+          display: "flex",
+          justifyContent: "center",
+          gap: 12,
+          zIndex: 60,
+          pointerEvents: "none",
         }}
-        onClick={(e) => e.stopPropagation()} // prevent closing when clicking inside
       >
-        {/* Portrait Row */}
         <div
           style={{
+            width: 140,
+            height: 80,
+            borderRadius: 10,
+            border: "1px solid rgba(0,255,255,0.25)",
+            background: "rgba(0,0,0,0.75)",
+            color: "#f5f5f5",
+            fontFamily: "system-ui, sans-serif",
+            fontSize: 12,
             display: "flex",
-            gap: 8,
-            marginBottom: 10,
+            alignItems: "center",
+            justifyContent: "center",
+            backdropFilter: "blur(6px)",
           }}
         >
-          {/* NPC portrait */}
-          <div
-            style={{
-              flex: 1,
-              borderRadius: 6,
-              border: "1px solid rgba(0,255,255,0.4)",
-              background:
-                "radial-gradient(circle at top, rgba(0,255,255,0.1), rgba(0,0,0,0.9))",
-              padding: "6px 8px",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              minHeight: 64,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 10,
-                opacity: 0.7,
-                marginBottom: 2,
-              }}
-            >
-              NPC
-            </div>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-              }}
-            >
-              {activeNode.npc}
-            </div>
-            <div
-              style={{
-                marginTop: 4,
-                fontSize: 10,
-                opacity: 0.7,
-              }}
-            >
-              [portrait slot]
-            </div>
-          </div>
-
-          {/* Casper portrait */}
-          <div
-            style={{
-              flex: 1,
-              borderRadius: 6,
-              border: "1px solid rgba(0,255,255,0.4)",
-              background:
-                "radial-gradient(circle at top, rgba(0,255,255,0.05), rgba(0,0,0,0.9))",
-              padding: "6px 8px",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              minHeight: 64,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 10,
-                opacity: 0.7,
-                marginBottom: 2,
-                textAlign: "right",
-              }}
-            >
-              PLAYER
-            </div>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                textAlign: "right",
-              }}
-            >
-              Casper
-            </div>
-            <div
-              style={{
-                marginTop: 4,
-                fontSize: 10,
-                opacity: 0.7,
-                textAlign: "right",
-              }}
-            >
-              [portrait slot]
-            </div>
-          </div>
+          Casper
         </div>
 
-        {/* Header row */}
         <div
           style={{
-            marginBottom: 8,
+            width: 140,
+            height: 80,
+            borderRadius: 10,
+            border: "1px solid rgba(0,255,255,0.25)",
+            background: "rgba(0,0,0,0.75)",
+            color: "#f5f5f5",
+            fontFamily: "system-ui, sans-serif",
+            fontSize: 12,
             display: "flex",
-            alignItems: "baseline",
-            justifyContent: "space-between",
+            alignItems: "center",
+            justifyContent: "center",
+            backdropFilter: "blur(6px)",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: 8,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 11,
-                opacity: 0.7,
-              }}
-            >
-              DIALOG
-            </span>
-          </div>
+          {activeNode.npc}
+        </div>
+      </div>
+
+      {/* Dialog box */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: "rgba(0,0,0,0.9)",
+          borderTop: "1px solid rgba(0,255,255,0.3)",
+          padding: "1.5rem 1.5rem 1.25rem",
+          backdropFilter: "blur(6px)",
+          fontFamily: "system-ui, sans-serif",
+          zIndex: 55,
+          color: "#f5f5f5",
+        }}
+      >
+        <div style={{ marginBottom: 8, display: "flex", alignItems: "baseline" }}>
+          <h3 style={{ margin: 0, marginRight: 8, fontSize: 16, letterSpacing: 0.5 }}>
+            {activeNode.npc}
+          </h3>
+          <span style={{ fontSize: 11, opacity: 0.6 }}>DIALOG</span>
         </div>
 
-        {/* NPC line */}
-        <p
-          style={{
-            margin: "0 0 1rem",
-            fontSize: 14,
-            lineHeight: 1.5,
-            opacity: 0.9,
-          }}
-        >
+        <p style={{ margin: "0 0 1rem", fontSize: 14, lineHeight: 1.5, opacity: 0.9 }}>
           {activeNode.text}
         </p>
 
-        {/* Response options */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            marginTop: 8,
-          }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {visibleResponses.map((response, idx) => (
             <button
               key={idx}
               onClick={() => chooseResponse(response)}
               style={{
                 textAlign: "left",
-                padding: "0.45rem 0.65rem",
-                borderRadius: 4,
+                padding: "0.4rem 0.6rem",
+                borderRadius: 6,
                 border: "1px solid rgba(0,255,255,0.25)",
                 background: "rgba(0,0,0,0.7)",
                 color: "#f5f5f5",
@@ -229,19 +117,19 @@ export default function DialogWindow() {
         <button
           onClick={endDialog}
           style={{
-            marginTop: 16,
+            marginTop: 10,
             fontSize: 11,
             opacity: 0.6,
             background: "transparent",
-            border: "1px solid rgba(0,255,255,0.3)",
-            borderRadius: 4,
-            padding: "4px 8px",
+            border: "none",
+            padding: 0,
             cursor: "pointer",
+            color: "#f5f5f5",
           }}
         >
-          Close
+          End conversation
         </button>
       </div>
-    </div>
+    </>
   );
 }
