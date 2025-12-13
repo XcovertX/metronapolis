@@ -28,6 +28,7 @@ export type InventoryItem = {
 type LoopFlags = {
   transitUnlocked: boolean;
   rooftopUnlocked: boolean;
+  hasWokenUp: boolean;
   // add more as needed later
 };
 
@@ -54,6 +55,7 @@ const INITIAL_TIME = 12 * 60 - 5;
 const initialFlags: LoopFlags = {
   transitUnlocked: false,
   rooftopUnlocked: false,
+  hasWokenUp: false,
 };
 
 const initialInventory: InventoryItem[] = [];
