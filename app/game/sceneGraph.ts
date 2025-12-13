@@ -107,7 +107,7 @@ export const sceneGraph = {
     exits: { n: "apt-hallway", e: "elevator", w: "stairwell-mid", s: "street-front", down: "basement-storage" },
     tags: ["interior", "building", "social"],
   },
-  elevator: {
+  "elevator": {
     id: "elevator",
     title: "Elevator (Broken)",
     x: 1,
@@ -223,7 +223,7 @@ export const sceneGraph = {
     exits: { e: "fire-escape-top", w: "rooftop" },
     tags: ["transition", "roof"],
   },
-  rooftop: {
+  "rooftop": {
     id: "rooftop",
     title: "Rooftop — Main",
     x: 0,
@@ -290,7 +290,7 @@ export const sceneGraph = {
     exits: { e: "alley-entrance", w: "dumpster", n: "side-street-west", s: "loading-zone" },
     tags: ["exterior"],
   },
-  dumpster: {
+  "dumpster": {
     id: "dumpster",
     title: "Dumpster Corner",
     x: -3,
@@ -326,7 +326,7 @@ export const sceneGraph = {
     exits: { w: "street-front", n: "streetlight", s: "service-door", e: "side-street-east" },
     tags: ["exterior"],
   },
-  streetlight: {
+  "streetlight": {
     id: "streetlight",
     title: "Streetlight Corner",
     x: 1,

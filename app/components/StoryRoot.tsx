@@ -50,7 +50,7 @@ export default function StoryRoot() {
       {/* UI layers */}
       <DialogWindow />
       <ExamineWindow />
-      <OptionsPanel />
+
     </main>
   );
 }

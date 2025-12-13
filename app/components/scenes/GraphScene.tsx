@@ -77,6 +77,12 @@ export default function GraphScene() {
         dir,
         label: formatMoveLabel(dir, nextDef.title),
         onSelect: () => {
+          setFlags((prev: any) => {
+            if (!prev?.hide) return prev;
+            const next = { ...prev };
+            delete next.hide;
+            return next;
+          });
           advanceTime(timeCost);
           goToScene(next as SceneId);
         },

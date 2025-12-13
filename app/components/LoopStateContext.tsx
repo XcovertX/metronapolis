@@ -156,6 +156,15 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
 
       pushMessages(result.messages);
 
+      // If time engine declares death, reset loop after a short beat
+      if (result.death) {
+        // Give the message overlay a moment to show
+        setTimeout(() => {
+          resetLoop();
+        }, 700);
+        return;
+      }
+
       // reset idle timer whenever time changes
       setLastEventAt(Date.now());
     },

@@ -2,6 +2,7 @@
 import type { EventModule } from "../types";
 import type { PlayerOption } from "../../../components/OptionsContext";
 import { TIME } from "../../timeRules";
+import { getSwitchLocation } from "../../npcs/switch";
 
 export const switchNpc: EventModule = {
   id: "npc.switch",
@@ -12,25 +13,16 @@ export const switchNpc: EventModule = {
       npc: "Switch",
       text: "Wrong minute to be brave.",
       responses: [
-        {
-          label: "Back off.",
-          timeCost: TIME.DEFAULT_ACTION,
-          setFlags: (p) => ({ ...p, switchSeen: true }),
-        },
-        {
-          label: "Say nothing.",
-          timeCost: TIME.DEFAULT_ACTION,
-          setFlags: (p) => ({ ...p, switchSeen: true }),
-        },
+        { label: "Back off.", timeCost: TIME.DEFAULT_ACTION },
+        { label: "Say nothing.", timeCost: TIME.DEFAULT_ACTION },
       ],
     },
   },
 
   getOptions: (ctx, h) => {
-    if (ctx.scene !== "alley-mid") return [];
-    // only “active” in a danger window (example)
-    const t = ctx.timeMinutes;
-    if (t < 12 * 60 + 6 || t > 12 * 60 + 10) return [];
+    // Only show when Switch is actually in this scene right now
+    const loc = getSwitchLocation(ctx.timeMinutes);
+    if (loc !== ctx.scene) return [];
 
     const opts: PlayerOption[] = [];
 
@@ -40,7 +32,6 @@ export const switchNpc: EventModule = {
       label: "Approach the figure in the alley.",
       onSelect: () => {
         h.advanceTime(TIME.DEFAULT_ACTION);
-        h.setNpcState((p) => ({ ...p, switchSpooked: true }));
         h.startDialog("switch.stare");
       },
     });
