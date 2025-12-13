@@ -37,6 +37,7 @@ export const catNpc: EventModule = {
       kind: "action",
       label: "Look at the cat.",
       onSelect: () => {
+        console.log("[catNpc] clicked");
         h.advanceTime(TIME.DEFAULT_ACTION);
         h.setNpcState((prev) => ({
           ...prev,

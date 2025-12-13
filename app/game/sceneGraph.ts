@@ -98,7 +98,7 @@ export const sceneGraph = {
   // ─────────────────────────────────────────
   // Building Ground (z=0)
   // ─────────────────────────────────────────
-  lobby: {
+  "lobby": {
     id: "lobby",
     title: "Building Lobby",
     x: 0,

@@ -3,6 +3,7 @@
 
 import { useMemo } from "react";
 import { useOptions, type PlayerOption } from "./OptionsContext";
+import { useDialog } from "./DialogContext"; // ✅ add
 
 function ActionPanel({ options }: { options: PlayerOption[] }) {
   if (!options.length) return null;
@@ -67,27 +68,29 @@ function ActionPanel({ options }: { options: PlayerOption[] }) {
 function MoveButton({
   opt,
   label,
+  disabled,
 }: {
   opt?: PlayerOption;
   label: string;
+  disabled?: boolean;
 }) {
-  const disabled = !opt;
+  const isDisabled = disabled || !opt;
 
   return (
     <button
       onClick={() => opt?.onSelect()}
-      disabled={disabled}
+      disabled={isDisabled}
       title={opt?.label ?? ""}
       style={{
         width: 56,
         height: 56,
         borderRadius: 10,
         border: "1px solid rgba(0,255,255,0.25)",
-        background: disabled ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.75)",
+        background: isDisabled ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.75)",
         color: "rgba(245,245,245,0.9)",
         fontSize: 14,
-        cursor: disabled ? "default" : "pointer",
-        opacity: disabled ? 0.35 : 1,
+        cursor: isDisabled ? "not-allowed" : "pointer",
+        opacity: isDisabled ? 0.25 : 1,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -102,27 +105,29 @@ function MoveButton({
 function SmallMoveButton({
   opt,
   label,
+  disabled,
 }: {
   opt?: PlayerOption;
   label: string;
+  disabled?: boolean;
 }) {
-  const disabled = !opt;
+  const isDisabled = disabled || !opt;
 
   return (
     <button
       onClick={() => opt?.onSelect()}
-      disabled={disabled}
+      disabled={isDisabled}
       title={opt?.label ?? ""}
       style={{
         width: 56,
         height: 26,
         borderRadius: 8,
         border: "1px solid rgba(0,255,255,0.25)",
-        background: disabled ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.75)",
+        background: isDisabled ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.75)",
         color: "rgba(245,245,245,0.9)",
         fontSize: 11,
-        cursor: disabled ? "default" : "pointer",
-        opacity: disabled ? 0.35 : 1,
+        cursor: isDisabled ? "not-allowed" : "pointer",
+        opacity: isDisabled ? 0.25 : 1,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -134,7 +139,13 @@ function SmallMoveButton({
   );
 }
 
-function DPadPanel({ moves }: { moves: PlayerOption[] }) {
+function DPadPanel({
+  moves,
+  movementLocked,
+}: {
+  moves: PlayerOption[];
+  movementLocked: boolean;
+}) {
   if (!moves.length) return null;
 
   const byDir = (dir: string) => moves.find((m) => m.dir === dir);
@@ -175,16 +186,16 @@ function DPadPanel({ moves }: { moves: PlayerOption[] }) {
         }}
       >
         <span>MOVE</span>
-        <span style={{ opacity: 0.4 }}>D-PAD</span>
+        <span style={{ opacity: 0.4 }}>
+          {movementLocked ? "LOCKED" : "D-PAD"}
+        </span>
       </div>
 
-      {/* Up/Down (vertical) */}
       <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 8 }}>
-        <SmallMoveButton opt={up} label="UP" />
-        <SmallMoveButton opt={down} label="DN" />
+        <SmallMoveButton opt={up} label="UP" disabled={movementLocked} />
+        <SmallMoveButton opt={down} label="DN" disabled={movementLocked} />
       </div>
 
-      {/* D-pad grid */}
       <div
         style={{
           display: "grid",
@@ -195,22 +206,21 @@ function DPadPanel({ moves }: { moves: PlayerOption[] }) {
           alignItems: "center",
         }}
       >
-        <div /> {/* empty */}
-        <MoveButton opt={n} label="N" />
-        <div /> {/* empty */}
+        <div />
+        <MoveButton opt={n} label="N" disabled={movementLocked} />
+        <div />
 
-        <MoveButton opt={w} label="W" />
-        <MoveButton opt={undefined} label="●" />
-        <MoveButton opt={e} label="E" />
+        <MoveButton opt={w} label="W" disabled={movementLocked} />
+        <MoveButton opt={undefined} label="●" disabled={true} />
+        <MoveButton opt={e} label="E" disabled={movementLocked} />
 
-        <div /> {/* empty */}
-        <MoveButton opt={s} label="S" />
-        <div /> {/* empty */}
+        <div />
+        <MoveButton opt={s} label="S" disabled={movementLocked} />
+        <div />
       </div>
 
-      {/* Optional hint (destination preview) */}
       <div style={{ marginTop: 8, fontSize: 10, opacity: 0.55, textAlign: "center" }}>
-        Tap a direction to move
+        {movementLocked ? "Movement disabled during dialog" : "Tap a direction to move"}
       </div>
     </div>
   );
@@ -218,6 +228,8 @@ function DPadPanel({ moves }: { moves: PlayerOption[] }) {
 
 export default function OptionsPanel() {
   const { options } = useOptions();
+  const { activeNode } = useDialog(); 
+  const movementLocked = !!activeNode;
 
   const { actions, moves } = useMemo(() => {
     const actions: PlayerOption[] = [];
@@ -237,7 +249,7 @@ export default function OptionsPanel() {
   return (
     <>
       <ActionPanel options={actions} />
-      <DPadPanel moves={moves} />
+      <DPadPanel moves={moves} movementLocked={movementLocked} />
     </>
   );
 }

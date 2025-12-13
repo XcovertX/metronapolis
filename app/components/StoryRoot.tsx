@@ -18,6 +18,7 @@ import AptBedroom from "./scenes/AptBedroom";
 
 // Generic fallback scene
 import GraphScene from "./scenes/GraphScene";
+import SceneMessageOverlay from "./SceneMessageOverlay";
 
 const AUTHORED_SCENES: Partial<Record<SceneId, React.FC>> = {
   "apt-bedroom": AptBedroom,
@@ -41,6 +42,7 @@ export default function StoryRoot() {
       {/* Global overlays */}
       <HUD />
       <DebugOverlay />
+      <SceneMessageOverlay />
 
       {/* Scene */}
       <SceneComponent />
