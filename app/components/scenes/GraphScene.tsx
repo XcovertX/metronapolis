@@ -44,6 +44,9 @@ export default function GraphScene() {
     removeItem,
     npcState,
     setNpcState,
+    credits, 
+    addCredits, 
+    spendCredits
   } = useLoopState();
 
   const { startDialog } = useDialog();
@@ -55,8 +58,8 @@ export default function GraphScene() {
     // Event-driven ACTIONS (left)
     opts.push(
       ...getEventOptions(
-        { scene, timeMinutes, flags, inventory, npcState },
-        { advanceTime, setFlags, addItem, removeItem, setNpcState, startDialog }
+        { scene, timeMinutes, flags, inventory, npcState, credits },
+        { advanceTime, setFlags, addItem, removeItem, setNpcState, startDialog, addCredits, spendCredits}
       )
     );
 

@@ -3,7 +3,7 @@
 
 import React, { useMemo } from "react";
 import { useLoopState } from "./LoopStateContext";
-import { getExit, type Direction } from "../game/sceneGraph";
+import { getExit, getScene, type Direction } from "../game/sceneGraph";
 import OptionsWindow from "./OptionsPanel";
 
 const DIRS: Direction[] = ["n", "e", "s", "w", "up", "down"];
@@ -40,32 +40,102 @@ function CornerCut() {
   );
 }
 
-function MiniMap({
-  scene,
-}: {
-  scene: string;
-}) {
-  const exits = useMemo(() => {
-    const e: Partial<Record<Direction, string>> = {};
-    for (const d of DIRS) {
-      const next = getExit(scene as any, d);
-      if (next) e[d] = String(next);
+function MiniMap({ scene }: { scene: string }) {
+  const data = useMemo(() => {
+    type Node = { id: string; x: number; y: number };
+
+    const start = String(scene);
+
+    const dirDelta: Record<Direction, { dx: number; dy: number }> = {
+      n: { dx: 0, dy: -1 },
+      e: { dx: 1, dy: 0 },
+      s: { dx: 0, dy: 1 },
+      w: { dx: -1, dy: 0 },
+      up: { dx: 0, dy: 0 },   // handled separately
+      down: { dx: 0, dy: 0 }, // handled separately
+    };
+
+    // 5x5 grid centered at (0,0) => range -2..2
+    const MIN = -2;
+    const MAX = 2;
+
+    const visited = new Map<string, { x: number; y: number }>();
+    const occupied = new Map<string, string>(); // "x,y" -> sceneId
+    const q: Node[] = [{ id: start, x: 0, y: 0 }];
+
+    visited.set(start, { x: 0, y: 0 });
+    occupied.set(`0,0`, start);
+
+    // BFS limited to the local bounds
+    while (q.length) {
+      const cur = q.shift()!;
+      for (const d of ["n", "e", "s", "w"] as Direction[]) {
+        const next = getExit(cur.id as any, d);
+        if (!next) continue;
+
+        const { dx, dy } = dirDelta[d];
+        const nx = cur.x + dx;
+        const ny = cur.y + dy;
+
+        if (nx < MIN || nx > MAX || ny < MIN || ny > MAX) continue;
+
+        const nextId = String(next);
+
+        // If already placed, don't move it.
+        if (visited.has(nextId)) continue;
+
+        // If the cell is already occupied by a different scene, skip placing
+        // (prevents collisions in loopy graphs)
+        const key = `${nx},${ny}`;
+        if (occupied.has(key)) continue;
+
+        visited.set(nextId, { x: nx, y: ny });
+        occupied.set(key, nextId);
+        q.push({ id: nextId, x: nx, y: ny });
+      }
     }
-    return e;
+
+    // Vertical chips
+    const up = getExit(start as any, "up");
+    const down = getExit(start as any, "down");
+
+    // Build cells for render
+    const cells: {
+      id: string;
+      title: string;
+      x: number;
+      y: number;
+      isCenter: boolean;
+    }[] = [];
+
+    for (const [id, pos] of visited.entries()) {
+      const def = getScene(id as any);
+      cells.push({
+        id,
+        title: def?.title ?? id,
+        x: pos.x,
+        y: pos.y,
+        isCenter: id === start,
+      });
+    }
+
+    return { cells, up: up ? String(up) : null, down: down ? String(down) : null, centerId: start };
   }, [scene]);
 
-  // Basic top-down visualization: player is center, cardinal exits around.
-  // Up/Down rendered as small chips.
-  const has = (d: Direction) => !!exits[d];
+  const cellAt = (x: number, y: number) =>
+    data.cells.find((c) => c.x === x && c.y === y) ?? null;
+
+  const truncate = (t: string, max = 10) =>
+    t.length > max ? t.slice(0, max - 1) + "…" : t;
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
       <div
         style={{
           position: "relative",
-          width: 142,
-          height: 142,
-          borderRadius: 10,
+          width: 400,
+          height: 400,
+          borderRadius: 12,
           border: "1px solid rgba(0,255,210,0.28)",
           background:
             "linear-gradient(180deg, rgba(0,20,18,0.85), rgba(0,0,0,0.85))",
@@ -87,78 +157,148 @@ function MiniMap({
             mixBlendMode: "screen",
           }}
         />
-        {/* player */}
+
+        {/* 5x5 tiles */}
         <div
-          title="You"
           style={{
             position: "absolute",
-            left: "50%",
-            top: "50%",
-            width: 12,
-            height: 12,
-            transform: "translate(-50%, -50%) rotate(45deg)",
-            background: "rgba(255,200,90,0.95)",
-            boxShadow: "0 0 12px rgba(255,200,90,0.55)",
-            border: "1px solid rgba(0,0,0,0.6)",
+            inset: 12,
+            display: "grid",
+            gridTemplateColumns: "repeat(5, 1fr)",
+            gridTemplateRows: "repeat(5, 1fr)",
+            gap: 8,
           }}
-        />
+        >
+          {[-2, -1, 0, 1, 2].map((y) =>
+            [-2, -1, 0, 1, 2].map((x) => {
+              const c = cellAt(x, y);
+              return (
+                <MapTile
+                  key={`${x},${y}`}
+                  data={c ? { id: c.id, title: c.title } : null}
+                  isCenter={!!c?.isCenter}
+                  label={c?.isCenter ? "YOU" : c ? truncate(c.title) : ""}
+                />
+              );
+            })
+          )}
+        </div>
 
-        {/* exits */}
-        <MapPip show={has("n")} x="50%" y="12%" label="N" />
-        <MapPip show={has("e")} x="88%" y="50%" label="E" />
-        <MapPip show={has("s")} x="50%" y="88%" label="S" />
-        <MapPip show={has("w")} x="12%" y="50%" label="W" />
-
-        {/* Up/Down chips */}
+        {/* up/down chips */}
         <div
           style={{
             position: "absolute",
-            left: 10,
+            right: 10,
             bottom: 10,
             display: "flex",
             gap: 6,
-            opacity: 0.9,
+            opacity: 0.95,
           }}
         >
-          <Chip active={has("up")} text="UP" />
-          <Chip active={has("down")} text="DN" />
+          <Chip active={!!data.up} text="UP" />
+          <Chip active={!!data.down} text="DN" />
         </div>
 
-        {/* edge vignette */}
+        {/* vignette */}
         <div
           aria-hidden
           style={{
             position: "absolute",
             inset: 0,
-            boxShadow: "inset 0 0 38px rgba(0,0,0,0.75)",
+            boxShadow: "inset 0 0 42px rgba(0,0,0,0.75)",
             pointerEvents: "none",
           }}
         />
       </div>
 
-      {/* legend / subtle */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ opacity: 0.85 }}>
-          <div style={{ fontSize: 10, letterSpacing: 1, opacity: 0.7 }}>
-            NAV STACK
-          </div>
-          <div style={{ fontSize: 12, lineHeight: 1.35, opacity: 0.9 }}>
-            Top-down local map.
-            <br />
-            Cardials reflect exits.
-          </div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ fontSize: 10, opacity: 0.65, letterSpacing: 1.1 }}>
+          LOCAL GRID 5×5
         </div>
-
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          <Chip active={has("n")} text="N" />
-          <Chip active={has("e")} text="E" />
-          <Chip active={has("s")} text="S" />
-          <Chip active={has("w")} text="W" />
+        <div style={{ fontSize: 10, opacity: 0.55, letterSpacing: 1.1 }}>
+          {truncate(getScene(data.centerId as any)?.title ?? data.centerId, 18)}
         </div>
       </div>
     </div>
   );
 }
+
+function MapTile({
+  data,
+  isCenter,
+  label,
+}: {
+  data: { id: string; title: string } | null;
+  isCenter?: boolean;
+  label: string;
+}) {
+  const title = data?.title ?? "";
+
+  return (
+    <div
+      title={title}
+      style={{
+        borderRadius: 10,
+        border: "1px solid rgba(0,255,210,0.22)",
+        background: isCenter
+          ? "rgba(255,200,90,0.10)"
+          : data
+          ? "rgba(0,0,0,0.55)"
+          : "rgba(0,0,0,0.22)",
+        boxShadow: isCenter
+          ? "0 0 14px rgba(255,200,90,0.18), inset 0 0 0 1px rgba(255,200,90,0.10)"
+          : data
+          ? "inset 0 0 0 1px rgba(0,255,210,0.06)"
+          : "none",
+        color: isCenter
+          ? "rgba(255,200,90,0.95)"
+          : "rgba(210,255,245,0.88)",
+        fontSize: 10,
+        letterSpacing: 0.5,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        padding: "4px 6px",
+        opacity: data || isCenter ? 1 : 0.25,
+        userSelect: "none",
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
+
+function SecondRingPip({
+  show,
+  x,
+  y,
+}: {
+  show: boolean;
+  x: string;
+  y: string;
+}) {
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        left: x,
+        top: y,
+        transform: "translate(-50%, -50%)",
+        width: 8,
+        height: 8,
+        borderRadius: 3,
+        border: "1px solid rgba(0,255,210,0.30)",
+        background: show ? "rgba(0,255,210,0.28)" : "rgba(255,255,255,0.06)",
+        boxShadow: show ? "0 0 10px rgba(0,255,210,0.18)" : "none",
+        opacity: show ? 0.95 : 0.25,
+      }}
+    />
+  );
+}
+
 
 function MapPip({
   show,
@@ -219,7 +359,7 @@ function Chip({ active, text }: { active: boolean; text: string }) {
 }
 
 export default function Hud() {
-  const { scene, sceneDef, timeMinutes, loopCount, inventory } = useLoopState();
+  const { scene, sceneDef, timeMinutes, loopCount, inventory, credits } = useLoopState();
 
   const inv = inventory ?? [];
 
@@ -338,9 +478,22 @@ export default function Hud() {
               <span>LOOP {loopCount}</span>
               <span>SCENE ID: {scene}</span>
             </div>
+            <div
+              style={{
+                marginTop: 6,
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 10,
+                letterSpacing: 1,
+                opacity: 0.75,
+              }}
+            >
+              <span>CREDITS: {credits}</span>
+              <span>INV: {inventory.length}</span>
+            </div>
           </HudPanel>
 
-          <HudPanel style={{ width: 340 }}>
+          <HudPanel style={{ width: 440 }}>
             <CornerCut />
             <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65, marginBottom: 10 }}>
               MINIMAP
@@ -353,9 +506,9 @@ export default function Hud() {
         <div
           style={{
             position: "absolute",
-            bottom: 14,
+            bottom: 300,
             left: 14,
-            width: 360,
+            width: 380,
           }}
         >
           <HudPanel>
@@ -384,7 +537,8 @@ export default function Hud() {
               ) : (
                 inv.map((item) => (
                   <span
-                    key={item}
+                    key={item.id}
+                    title={item.description}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -408,7 +562,7 @@ export default function Hud() {
                         boxShadow: "0 0 10px rgba(0,255,210,0.25)",
                       }}
                     />
-                    {item}
+                    {item.name}
                   </span>
                 ))
               )}

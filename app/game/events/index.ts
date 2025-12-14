@@ -7,11 +7,12 @@ import { hideEvent } from "./hide";
 import { catNpc } from "./npcs/cat";
 import { rhea } from "./npcs/rhea";
 import { milo } from "./npcs/milo";
-import { vex } from "./npcs/vex";
+// import { vex } from "./npcs/vex";
 import { sable } from "./npcs/sable";
 import { switchNpc } from "./npcs/switch";
+import { baristaNpc } from "./npcs/vex";
 
-const modules: EventModule[] = [hideEvent, catNpc, rhea, milo, vex, sable, switchNpc];
+const modules: EventModule[] = [hideEvent, catNpc, rhea, milo, sable, switchNpc, baristaNpc ];
 
 export function getEventOptions(ctx: EventCtx, helpers: EventHelpers): PlayerOption[] {
   const out: PlayerOption[] = [];

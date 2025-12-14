@@ -14,6 +14,7 @@ import React, {
 
 import { getScene, type SceneId } from "../game/sceneGraph";
 import { runTimeStep } from "../game/timeEngine";
+import { InventoryItem } from "../game/items/types";
 
 export type LoopFlags = {
   hasWokenUp: boolean;
@@ -54,10 +55,15 @@ type LoopStateValue = {
   npcState: NPCState;
   setNpcState: React.Dispatch<React.SetStateAction<NPCState>>;
 
-  inventory: string[];
-  addItem: (item: string) => void;
-  removeItem: (item: string) => void;
-  hasItem: (item: string) => boolean;
+  inventory: InventoryItem[];
+  addItem: (item: InventoryItem) => void;
+  removeItem: (id: string) => void;
+  hasItem: (id: string) => boolean;
+
+  credits: number;
+  addCredits: (amount: number) => void;
+  spendCredits: (amount: number) => boolean;
+  canAfford: (amount: number) => boolean;
 
   // scene messages (ambient/delta popups)
   sceneMessages: string[];
@@ -90,7 +96,8 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
 
   const [flags, setFlags] = useState<LoopFlags>(initialFlags);
   const [npcState, setNpcState] = useState<NPCState>(initialNPCState);
-  const [inventory, setInventory] = useState<string[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [credits, setCredits] = useState<number>(20);
 
   const [sceneMessages, setSceneMessages] = useState<string[]>([]);
   const [lastEventAt, setLastEventAt] = useState<number>(() => Date.now());
@@ -100,7 +107,7 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
   const timeRef = useRef<number>(timeMinutes);
   const flagsRef = useRef<LoopFlags>(flags);
   const npcRef = useRef<NPCState>(npcState);
-  const invRef = useRef<string[]>(inventory);
+  const invRef = useRef<InventoryItem[]>(inventory);
 
   useEffect(() => {
     sceneRef.current = scene;
@@ -150,7 +157,7 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
       const result = runTimeStep(prev, next, {
         scene: sceneRef.current,
         flags: flagsRef.current,
-        inventory: invRef.current,
+        inventory: invRef.current.map((item) => item.id),
         npcState: npcRef.current,
       });
 
@@ -181,25 +188,34 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
     setScene(id);
   }, []);
 
-  const addItem = useCallback((item: string) => {
-    setInventory((prev) => {
-      if (prev.includes(item)) return prev;
-      const next = [...prev, item];
-      invRef.current = next;
-      return next;
-    });
+  const addItem = (item: InventoryItem) => {
+    setInventory((prev) => [...prev, item]);
+  };
+
+  const removeItem = (id: string) => {
+    setInventory((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const hasItem = (id: string) => {
+    return inventory.some((i) => i.id === id);
+  };
+
+  const addCredits = useCallback((amount: number) => {
+    setCredits((prev) => Math.max(0, prev + amount));
   }, []);
 
-  const removeItem = useCallback((item: string) => {
-    setInventory((prev) => {
-      const next = prev.filter((x) => x !== item);
-      invRef.current = next;
-      return next;
-    });
-  }, []);
+  const canAfford = useCallback((amount: number) => credits >= amount, [credits]);
 
-  const hasItem = useCallback((item: string) => {
-    return invRef.current.includes(item);
+  const spendCredits = useCallback((amount: number) => {
+    if (amount <= 0) return true;
+
+    let didSpend = false;
+    setCredits((prev) => {
+      if (prev < amount) return prev;
+      didSpend = true;
+      return prev - amount;
+    });
+    return didSpend;
   }, []);
 
   const resetLoop = useCallback(() => {
@@ -218,6 +234,8 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
     setFlags(initialFlags);
     setNpcState(initialNPCState);
     setInventory([]);
+
+    setCredits(20);
 
     setSceneMessages([]);
     setLastEventAt(Date.now());
@@ -256,6 +274,11 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
     addItem,
     removeItem,
     hasItem,
+
+    credits,
+    addCredits,
+    spendCredits,
+    canAfford,
 
     sceneMessages,
     clearSceneMessages,
