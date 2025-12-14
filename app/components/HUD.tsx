@@ -3,8 +3,10 @@
 
 import React, { useMemo } from "react";
 import { useLoopState } from "./LoopStateContext";
-import { getExit, getScene, type Direction } from "../game/sceneGraph";
+import { getExit, getScene, sceneGraph, type Direction } from "../game/sceneGraph";
 import OptionsWindow from "./OptionsPanel";
+import MiniMap from "./MiniMap";
+import Minimap_ALT from "./Minimap_ALT";
 
 const DIRS: Direction[] = ["n", "e", "s", "w", "up", "down"];
 
@@ -40,188 +42,7 @@ function CornerCut() {
   );
 }
 
-function MiniMap({ scene }: { scene: string }) {
-  const data = useMemo(() => {
-    type Node = { id: string; x: number; y: number };
 
-    const start = String(scene);
-
-    const dirDelta: Record<Direction, { dx: number; dy: number }> = {
-      n: { dx: 0, dy: -1 },
-      e: { dx: 1, dy: 0 },
-      s: { dx: 0, dy: 1 },
-      w: { dx: -1, dy: 0 },
-      up: { dx: 0, dy: 0 },   // handled separately
-      down: { dx: 0, dy: 0 }, // handled separately
-    };
-
-    // 5x5 grid centered at (0,0) => range -2..2
-    const MIN = -2;
-    const MAX = 2;
-
-    const visited = new Map<string, { x: number; y: number }>();
-    const occupied = new Map<string, string>(); // "x,y" -> sceneId
-    const q: Node[] = [{ id: start, x: 0, y: 0 }];
-
-    visited.set(start, { x: 0, y: 0 });
-    occupied.set(`0,0`, start);
-
-    // BFS limited to the local bounds
-    while (q.length) {
-      const cur = q.shift()!;
-      for (const d of ["n", "e", "s", "w"] as Direction[]) {
-        const next = getExit(cur.id as any, d);
-        if (!next) continue;
-
-        const { dx, dy } = dirDelta[d];
-        const nx = cur.x + dx;
-        const ny = cur.y + dy;
-
-        if (nx < MIN || nx > MAX || ny < MIN || ny > MAX) continue;
-
-        const nextId = String(next);
-
-        // If already placed, don't move it.
-        if (visited.has(nextId)) continue;
-
-        // If the cell is already occupied by a different scene, skip placing
-        // (prevents collisions in loopy graphs)
-        const key = `${nx},${ny}`;
-        if (occupied.has(key)) continue;
-
-        visited.set(nextId, { x: nx, y: ny });
-        occupied.set(key, nextId);
-        q.push({ id: nextId, x: nx, y: ny });
-      }
-    }
-
-    // Vertical chips
-    const up = getExit(start as any, "up");
-    const down = getExit(start as any, "down");
-
-    // Build cells for render
-    const cells: {
-      id: string;
-      title: string;
-      x: number;
-      y: number;
-      isCenter: boolean;
-    }[] = [];
-
-    for (const [id, pos] of visited.entries()) {
-      const def = getScene(id as any);
-      cells.push({
-        id,
-        title: def?.title ?? id,
-        x: pos.x,
-        y: pos.y,
-        isCenter: id === start,
-      });
-    }
-
-    return { cells, up: up ? String(up) : null, down: down ? String(down) : null, centerId: start };
-  }, [scene]);
-
-  const cellAt = (x: number, y: number) =>
-    data.cells.find((c) => c.x === x && c.y === y) ?? null;
-
-  const truncate = (t: string, max = 10) =>
-    t.length > max ? t.slice(0, max - 1) + "…" : t;
-
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
-      <div
-        style={{
-          position: "relative",
-          width: 400,
-          height: 400,
-          borderRadius: 12,
-          border: "1px solid rgba(0,255,210,0.28)",
-          background:
-            "linear-gradient(180deg, rgba(0,20,18,0.85), rgba(0,0,0,0.85))",
-          boxShadow:
-            "inset 0 0 0 1px rgba(0,255,210,0.08), 0 0 18px rgba(0,255,210,0.10)",
-          overflow: "hidden",
-        }}
-      >
-        {/* faint grid */}
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage:
-              "linear-gradient(rgba(0,255,210,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,210,0.06) 1px, transparent 1px)",
-            backgroundSize: "18px 18px",
-            opacity: 0.55,
-            mixBlendMode: "screen",
-          }}
-        />
-
-        {/* 5x5 tiles */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 12,
-            display: "grid",
-            gridTemplateColumns: "repeat(5, 1fr)",
-            gridTemplateRows: "repeat(5, 1fr)",
-            gap: 8,
-          }}
-        >
-          {[-2, -1, 0, 1, 2].map((y) =>
-            [-2, -1, 0, 1, 2].map((x) => {
-              const c = cellAt(x, y);
-              return (
-                <MapTile
-                  key={`${x},${y}`}
-                  data={c ? { id: c.id, title: c.title } : null}
-                  isCenter={!!c?.isCenter}
-                  label={c?.isCenter ? "YOU" : c ? truncate(c.title) : ""}
-                />
-              );
-            })
-          )}
-        </div>
-
-        {/* up/down chips */}
-        <div
-          style={{
-            position: "absolute",
-            right: 10,
-            bottom: 10,
-            display: "flex",
-            gap: 6,
-            opacity: 0.95,
-          }}
-        >
-          <Chip active={!!data.up} text="UP" />
-          <Chip active={!!data.down} text="DN" />
-        </div>
-
-        {/* vignette */}
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            boxShadow: "inset 0 0 42px rgba(0,0,0,0.75)",
-            pointerEvents: "none",
-          }}
-        />
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ fontSize: 10, opacity: 0.65, letterSpacing: 1.1 }}>
-          LOCAL GRID 5×5
-        </div>
-        <div style={{ fontSize: 10, opacity: 0.55, letterSpacing: 1.1 }}>
-          {truncate(getScene(data.centerId as any)?.title ?? data.centerId, 18)}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function MapTile({
   data,
@@ -296,46 +117,6 @@ function SecondRingPip({
         opacity: show ? 0.95 : 0.25,
       }}
     />
-  );
-}
-
-
-function MapPip({
-  show,
-  x,
-  y,
-  label,
-}: {
-  show: boolean;
-  x: string;
-  y: string;
-  label: string;
-}) {
-  const opacity = show ? 1 : 0.15;
-  return (
-    <div
-      title={show ? `Exit ${label}` : `No exit ${label}`}
-      style={{
-        position: "absolute",
-        left: x,
-        top: y,
-        transform: "translate(-50%, -50%)",
-        width: 18,
-        height: 18,
-        borderRadius: 6,
-        border: "1px solid rgba(0,255,210,0.35)",
-        background: "rgba(0,0,0,0.55)",
-        boxShadow: show ? "0 0 12px rgba(0,255,210,0.25)" : "none",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 10,
-        letterSpacing: 1,
-        opacity,
-      }}
-    >
-      {label}
-    </div>
   );
 }
 
@@ -498,7 +279,7 @@ export default function Hud() {
             <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65, marginBottom: 10 }}>
               MINIMAP
             </div>
-            <MiniMap scene={scene} />
+            <Minimap_ALT currentId={scene} z={sceneGraph[scene].z} />
           </HudPanel>
         </div>
 

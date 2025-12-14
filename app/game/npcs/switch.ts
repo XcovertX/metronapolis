@@ -6,8 +6,8 @@ export type SwitchLoc = SceneId | null;
 export function getSwitchLocation(timeMinutes: number): SwitchLoc {
   // Present only during the danger window
   // 12:06–12:10 -> alley-mid
-  const start = 12 * 60 + 9;
-  const end = 12 * 60 + 10;
+  const start = 12 * 60 + 15;
+  const end = 12 * 60 + 20;
 
   if (timeMinutes >= start && timeMinutes <= end) return "alley-mid";
   return null;

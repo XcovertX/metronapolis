@@ -4,7 +4,12 @@ import type { PlayerOption } from "../../components/OptionsContext";
 import type { DialogNode } from "../../components/DialogContext";
 
 import { apartmentCreditsEvent } from "./apartmentCredits";
+import { aptKeyPickup } from "./pickups/aptKey";
+
 import { hideEvent } from "./hide";
+
+import { neighborDoorEvent } from "./doors/neighborDoor";
+
 import { catNpc } from "./npcs/cat";
 import { rhea } from "./npcs/rhea";
 import { milo } from "./npcs/milo";
@@ -12,7 +17,8 @@ import { sable } from "./npcs/sable";
 import { switchNpc } from "./npcs/switch";
 import { baristaNpc } from "./npcs/vex";
 
-const modules: EventModule[] = [hideEvent, catNpc, rhea, milo, sable, switchNpc, baristaNpc, apartmentCreditsEvent, ];
+const modules: EventModule[] = [hideEvent, 
+  catNpc, rhea, milo, sable, switchNpc, baristaNpc, apartmentCreditsEvent, aptKeyPickup, neighborDoorEvent];
 
 export function getEventOptions(ctx: EventCtx, helpers: EventHelpers): PlayerOption[] {
   const out: PlayerOption[] = [];
