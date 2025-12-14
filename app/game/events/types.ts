@@ -26,6 +26,8 @@ export type EventHelpers = {
   startDialog: (nodeId: string) => void;
   addCredits: (amount: number) => void;
   spendCredits: (amount: number) => boolean;
+
+  pushMessage: (text: string) => void;
 };
 
 export type EventModule = {

@@ -65,6 +65,8 @@ type LoopStateValue = {
   spendCredits: (amount: number) => boolean;
   canAfford: (amount: number) => boolean;
 
+  pushMessage: (text: string) => void;
+
   // scene messages (ambient/delta popups)
   sceneMessages: string[];
   clearSceneMessages: () => void;
@@ -97,7 +99,7 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
   const [flags, setFlags] = useState<LoopFlags>(initialFlags);
   const [npcState, setNpcState] = useState<NPCState>(initialNPCState);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [credits, setCredits] = useState<number>(20);
+  const [credits, setCredits] = useState<number>(0);
 
   const [sceneMessages, setSceneMessages] = useState<string[]>([]);
   const [lastEventAt, setLastEventAt] = useState<number>(() => Date.now());
@@ -218,6 +220,11 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
     return didSpend;
   }, []);
 
+  const pushMessage = useCallback((text: string) => {
+    if (!text) return;
+    pushMessages([text]);
+  }, [pushMessages]);
+
   const resetLoop = useCallback(() => {
     setLoopCount((c) => c + 1);
 
@@ -235,7 +242,7 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
     setNpcState(initialNPCState);
     setInventory([]);
 
-    setCredits(20);
+    setCredits(0);
 
     setSceneMessages([]);
     setLastEventAt(Date.now());
@@ -279,6 +286,8 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
     addCredits,
     spendCredits,
     canAfford,
+
+    pushMessage,
 
     sceneMessages,
     clearSceneMessages,
