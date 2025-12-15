@@ -65,7 +65,7 @@ export const sceneGraph = {
     x: 0,
     y: -1,
     z: 1,
-    exits: { n: "apt-living", w: "neighbor-door", e: "fire-escape-window", down: "lobby" },
+    exits: { n: "apt-living", w: "neighbor-door", e: "fire-escape-window", down: "elevator" },
     tags: ["interior", "building"],
   },
 // Neighbor apartment (z=1)
@@ -161,11 +161,9 @@ export const sceneGraph = {
     y: -1,
     z: 0,
     exits: {
-      up: "apt-hallway",
       e: "elevator",
-      w: "stairwell-mid",
-      s: "street-front",
-      down: "basement-storage",
+      w: "security-desk",
+      s: "courtyard-int",
     },
     tags: ["interior", "building", "social"],
   },
@@ -175,7 +173,7 @@ export const sceneGraph = {
     x: 1,
     y: -1,
     z: 0,
-    exits: { w: "lobby", s: "security-desk" },
+    exits: { w: "lobby", up: "apt-hallway", down: "basement-storage" },
     tags: ["interior", "building"],
   },
   "security-desk": {
@@ -184,7 +182,7 @@ export const sceneGraph = {
     x: 1,
     y: -2,
     z: 0,
-    exits: { n: "elevator", w: "maintenance-office" },
+    exits: { e: "lobby", w: "maintenance-office", n: "service-hall" },
     tags: ["interior", "building"],
   },
   "maintenance-office": {
@@ -193,7 +191,7 @@ export const sceneGraph = {
     x: 0,
     y: -2,
     z: 0,
-    exits: { e: "security-desk", w: "service-hall" },
+    exits: { down: "boiler-room", e: "security-desk" },
     tags: ["interior", "building"],
   },
   "service-hall": {
@@ -202,7 +200,7 @@ export const sceneGraph = {
     x: -1,
     y: -2,
     z: 0,
-    exits: { e: "maintenance-office", w: "building-laundry", n: "stairwell-mid", s: "courtyard-int" },
+    exits: { w: "building-laundry", n: "service-door", s: "security-desk" },
     tags: ["interior", "building"],
   },
   "building-laundry": {
@@ -229,7 +227,7 @@ export const sceneGraph = {
     x: -1,
     y: -3,
     z: 0,
-    exits: { n: "service-hall", e: "courtyard-ext" }, // door to outside courtyard (east)
+    exits: { n: "lobby", e: "courtyard-ext", s: "sidewalk-south" }, // door to outside courtyard (east)
     tags: ["transition", "building"],
   },
 
@@ -242,7 +240,7 @@ export const sceneGraph = {
     x: 0,
     y: -1,
     z: -1,
-    exits: { up: "lobby", e: "boiler-room" },
+    exits: { up: "elevator", w: "boiler-room" },
     tags: ["interior", "basement"],
   },
   "boiler-room": {
@@ -251,7 +249,7 @@ export const sceneGraph = {
     x: 1,
     y: -1,
     z: -1,
-    exits: { w: "basement-storage" },
+    exits: { up: "maintenance-office", e: "basement-storage" },
     tags: ["interior", "basement"],
   },
 
@@ -314,7 +312,25 @@ export const sceneGraph = {
     x: 0,
     y: 0,
     z: 0,
-    exits: { n: "lobby", s: "sidewalk-south", e: "bike-rack", w: "alley-entrance" },
+    exits: { n: "sidewalk-south", e: "street-alley" },
+    tags: ["exterior"],
+  },
+  "street-alley": {
+    id: "street-alley",
+    title: "Street — In Front of the Alley",
+    x: 0,
+    y: 0,
+    z: 0,
+    exits: { w: "street-front", n: "alley-entrance", e: "street-store", s: "laundromat-front" },
+    tags: ["exterior"],
+  },
+  "street-store": {
+    id: "street-store",
+    title: "Street — In Front of the Store",
+    x: 0,
+    y: 0,
+    z: 0,
+    exits: { w: "street-alley", s: "store-front" },
     tags: ["exterior"],
   },
   "sidewalk-north": {
@@ -332,7 +348,7 @@ export const sceneGraph = {
     x: 0,
     y: -1,
     z: 0,
-    exits: { n: "street-front", s: "courtyard-ext", e: "service-door", w: "loading-zone" },
+    exits: { n: "courtyard-int", s: "street-front", e: "bike-rack" },
     tags: ["exterior"],
   },
 
@@ -343,7 +359,7 @@ export const sceneGraph = {
     x: -1,
     y: 0,
     z: 0,
-    exits: { e: "street-front", w: "alley-mid" },
+    exits: { s: "street-alley", n: "alley-mid" },
     tags: ["exterior"],
   },
   "alley-mid": {
@@ -352,7 +368,7 @@ export const sceneGraph = {
     x: -2,
     y: 0,
     z: 0,
-    exits: { e: "alley-entrance", w: "dumpster", n: "side-street-west", s: "loading-zone" },
+    exits: { s: "alley-entrance", e: "dumpster", n: "dead-end" },
     tags: ["exterior"],
   },
   "dumpster": {
@@ -361,7 +377,7 @@ export const sceneGraph = {
     x: -3,
     y: 0,
     z: 0,
-    exits: { e: "alley-mid", w: "dead-end" },
+    exits: { w: "alley-mid" },
     tags: ["exterior"],
   },
   "dead-end": {
@@ -370,7 +386,7 @@ export const sceneGraph = {
     x: -4,
     y: 0,
     z: 0,
-    exits: { e: "dumpster" },
+    exits: { s: "alley-mid", w: "loading-zone" },
     tags: ["exterior"],
   },
 
@@ -381,7 +397,7 @@ export const sceneGraph = {
     x: -2,
     y: -1,
     z: 0,
-    exits: { n: "alley-mid", e: "sidewalk-south" },
+    exits: { s: "service-door", e: "dead-end", w: "service-door" },
     tags: ["exterior"],
   },
 
@@ -392,7 +408,7 @@ export const sceneGraph = {
     x: 1,
     y: 0,
     z: 0,
-    exits: { w: "street-front", n: "streetlight", e: "side-street-east", s: "service-door" },
+    exits: { w: "sidewalk-south", n: "courtyard-ext" },
     tags: ["exterior"],
   },
   "streetlight": {
@@ -401,7 +417,7 @@ export const sceneGraph = {
     x: 1,
     y: 1,
     z: 0,
-    exits: { w: "sidewalk-north", s: "bike-rack", n: "cafe-front", e: "clinic-front" },
+    exits: { w: "cafe-front", e: "side-street-east" },
     tags: ["exterior"],
   },
 
@@ -412,7 +428,7 @@ export const sceneGraph = {
     x: 0,
     y: -2,
     z: 0,
-    exits: { n: "sidewalk-south", w: "courtyard-int", e: "service-door" },
+    exits: { w: "courtyard-int" },
     tags: ["exterior"],
   },
 
@@ -423,7 +439,7 @@ export const sceneGraph = {
     x: 1,
     y: -1,
     z: 0,
-    exits: { w: "sidewalk-south", n: "bike-rack", s: "courtyard-ext" },
+    exits: { s: "service-hall", e: "loading-zone" },
     tags: ["transition"],
   },
 
@@ -437,7 +453,7 @@ export const sceneGraph = {
     x: 0,
     y: 2,
     z: 0,
-    exits: { s: "sidewalk-north", e: "cafe-front", w: "laundromat-front", n: "store-interior" },
+    exits: { n: "street-store", s: "store-interior", w: "laundromat-front", e: "cafe-front" },
     tags: ["exterior"],
   },
   "store-interior": {
@@ -446,7 +462,7 @@ export const sceneGraph = {
     x: 0,
     y: 3,
     z: 0,
-    exits: { s: "store-front", n: "store-stock", w: "ticket-kiosk", e: "cafe-back" },
+    exits: { n: "store-front", s: "store-stock" },
     tags: ["interior", "social"],
   },
   "store-stock": {
@@ -455,7 +471,7 @@ export const sceneGraph = {
     x: 0,
     y: 4,
     z: 0,
-    exits: { s: "store-interior" },
+    exits: { n: "store-interior" },
     tags: ["interior"],
   },
 
@@ -465,7 +481,7 @@ export const sceneGraph = {
     x: 1,
     y: 2,
     z: 0,
-    exits: { s: "streetlight", w: "store-front", n: "cafe-interior" },
+    exits: { e: "streetlight", w: "store-front", s: "cafe-interior" },
     tags: ["exterior", "social"],
   },
   "cafe-interior": {
@@ -474,7 +490,7 @@ export const sceneGraph = {
     x: 1,
     y: 3,
     z: 0,
-    exits: { s: "cafe-front", w: "cafe-back" },
+    exits: { n: "cafe-front", s: "cafe-back" },
     tags: ["interior", "social"],
   },
   "cafe-back": {
@@ -483,7 +499,7 @@ export const sceneGraph = {
     x: 0,
     y: 3,
     z: 0,
-    exits: { e: "cafe-interior", s: "store-interior" },
+    exits: { n: "cafe-interior" },
     tags: ["interior"],
   },
 
@@ -493,7 +509,7 @@ export const sceneGraph = {
     x: -1,
     y: 2,
     z: 0,
-    exits: { e: "store-front", s: "sidewalk-north", n: "laundromat-interior" },
+    exits: { n: "street-alley", s: "laundromat-interior", e: "store-front" },
     tags: ["exterior"],
   },
   "laundromat-interior": {
@@ -502,7 +518,7 @@ export const sceneGraph = {
     x: -1,
     y: 3,
     z: 0,
-    exits: { s: "laundromat-front", w: "transit-platform" },
+    exits: { n: "laundromat-front"},
     tags: ["interior"],
   },
 
@@ -512,7 +528,7 @@ export const sceneGraph = {
     x: 2,
     y: 2,
     z: 0,
-    exits: { w: "streetlight", n: "clinic-waiting", e: "phone-booth" },
+    exits: { w: "side-street-east", e: "clinic-waiting" },
     tags: ["exterior"],
   },
   "clinic-waiting": {
@@ -521,7 +537,7 @@ export const sceneGraph = {
     x: 2,
     y: 3,
     z: 0,
-    exits: { s: "clinic-front" },
+    exits: { w: "clinic-front", s: "phone-booth" },
     tags: ["interior"],
   },
 
@@ -563,7 +579,7 @@ export const sceneGraph = {
     x: 2,
     y: 0,
     z: 0,
-    exits: { w: "bike-rack", n: "clinic-front" },
+    exits: { w: "streetlight", n: "clinic-front", e: "clinic-front" },
     tags: ["exterior"],
   },
 
@@ -573,7 +589,7 @@ export const sceneGraph = {
     x: 3,
     y: 2,
     z: 0,
-    exits: { w: "clinic-front" },
+    exits: { n: "clinic-waiting" },
     tags: ["exterior"],
   },
 } as const satisfies Record<string, SceneDef<string>>;

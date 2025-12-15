@@ -107,7 +107,30 @@ export default function Hud() {
             width: "270px"
           }}
         >
-          <HudPanel style={{ flex: 1, minHeight: 56 }}>
+          <HudPanel style={{  }}>
+            <CornerCut />
+            <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65, marginBottom: 10  }}>
+              MINIMAP
+            </div>
+            <Minimap_ALT
+              currentId={scene}
+              windowPx={50}
+              isVisibleScene={(id) => {
+                // hide neighbor apartment until unlocked
+                if (
+                  id === "neighbor-foyer" ||
+                  id === "neighbor-living" ||
+                  id === "neighbor-bedroom" ||
+                  id === "neighbor-kitchen" ||
+                  id === "neighbor-bath"
+                ) {
+                  return !!flags.neighborDoorUnlocked;
+                }
+                return true;
+              }}
+            />
+          </HudPanel>
+          <HudPanel style={{ flex: 1, minHeight: 300 }}>
             <CornerCut />
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
               <div>
@@ -116,7 +139,7 @@ export default function Hud() {
                 </div>
                 <div
                   style={{
-                    fontSize: 14,
+                    fontSize: 8,
                     letterSpacing: 0.6,
                     textShadow: "0 0 10px rgba(0,255,210,0.20)",
                   }}
@@ -127,11 +150,11 @@ export default function Hud() {
 
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65 }}>
-                  RETINABAND TIME
+               TIME
                 </div>
                 <div
                   style={{
-                    fontSize: 18,
+                    fontSize: 10,
                     letterSpacing: 1.6,
                     color: "rgba(255,200,90,0.95)",
                     textShadow: `0 0 18px rgba(255,200,90,0.35)`,
@@ -200,32 +223,7 @@ export default function Hud() {
           </button>
         </div>
           </HudPanel>
-
-
-          <HudPanel style={{  }}>
-            <CornerCut />
-            <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65, marginBottom: 10  }}>
-              MINIMAP
-            </div>
-            <Minimap_ALT
-              currentId={scene}
-              windowPx={50}
-              isVisibleScene={(id) => {
-                // hide neighbor apartment until unlocked
-                if (
-                  id === "neighbor-foyer" ||
-                  id === "neighbor-living" ||
-                  id === "neighbor-bedroom" ||
-                  id === "neighbor-kitchen" ||
-                  id === "neighbor-bath"
-                ) {
-                  return !!flags.neighborDoorUnlocked;
-                }
-                return true;
-              }}
-            />
-          </HudPanel>
-                    <HudPanel>
+          <HudPanel>
             <CornerCut />
             <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65 }}>
               SYSTEM
