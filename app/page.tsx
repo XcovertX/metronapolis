@@ -8,17 +8,20 @@ import { ExamineProvider } from "./components/ExamineContext";
 import { OptionsProvider } from "./components/OptionsContext";
 import StoryRoot from "./components/StoryRoot";
 import { dialogNodes } from "./game/events"; // ✅ use merged event nodes
+import { ExamineModeProvider } from "./components/ExamineModeContext";
 
 export default function Page() {
   return (
     <LoopStateProvider>
-      <DialogProvider nodes={dialogNodes}>
-        <ExamineProvider>
-          <OptionsProvider>
-            <StoryRoot />
-          </OptionsProvider>
-        </ExamineProvider>
-      </DialogProvider>
+      <ExamineModeProvider>
+        <DialogProvider nodes={dialogNodes}>
+          <ExamineProvider>
+            <OptionsProvider>
+              <StoryRoot />
+            </OptionsProvider>
+          </ExamineProvider>
+        </DialogProvider>
+      </ExamineModeProvider>
     </LoopStateProvider>
   );
 }

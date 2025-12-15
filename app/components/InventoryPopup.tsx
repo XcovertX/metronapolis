@@ -5,6 +5,7 @@ import React, { useMemo } from "react";
 import { useLoopState } from "./LoopStateContext";
 import { useExamine } from "./ExamineContext";
 import { useExamineMode } from "./ExamineModeContext";
+import { on } from "events";
 
 const GRID_COLS = 4;
 const GRID_ROWS = 3; // 12 slots
@@ -18,7 +19,12 @@ export default function InventoryPopup({
 }) {
   const { inventory } = useLoopState(); // InventoryItem[]
   const { openExamine } = useExamine();
-  const { examineMode } = useExamineMode();
+  const { examineMode, toggleExamineMode } = useExamineMode();
+
+  function handleOutsideClick() {
+    onClose();
+    toggleExamineMode();
+  }
 
   const slots = useMemo(() => {
     const max = GRID_COLS * GRID_ROWS;
@@ -49,7 +55,7 @@ export default function InventoryPopup({
       aria-modal="true"
       onMouseDown={(e) => {
         // click outside closes
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) handleOutsideClick();
       }}
       style={{
         position: "fixed",
@@ -196,6 +202,25 @@ export default function InventoryPopup({
               ? "Click an item to examine it."
               : "Toggle EXAMINE, then click an item to inspect it."}
           </div>
+          <button
+          onClick={toggleExamineMode}
+          style={{
+            border: examineMode
+              ? "1px solid rgba(255,200,90,0.55)"
+              : "1px solid rgba(0,255,210,0.25)",
+            background: examineMode ? "rgba(255,200,90,0.12)" : "rgba(0,0,0,0.55)",
+            color: "rgba(210,255,245,0.95)",
+            borderRadius: 10,
+            padding: "8px 10px",
+            cursor: "pointer",
+            fontSize: 11,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+          }}
+          title={examineMode ? "Examine mode ON" : "Examine mode OFF"}
+        >
+          Examine {examineMode ? "ON" : "OFF"}
+        </button>
         </div>
       </div>
     </div>

@@ -45,13 +45,13 @@ const EXIT_ANCHORS: Partial<Record<SceneId, SceneAnchors>> = {
   "apt-bathroom": { s: { side: "s" } },
   "utility-closet": { s: { side: "s" } },
   "apt-hallway": {
-    n: { side: "n", offset: -4 },
+    n: { side: "n" },
     e: { side: "e" },
     w: { side: "w" },
-    down: { side: "s", offset: 6 },
+    down: { side: "s" },
   },
   "neighbor-door": { e: { side: "e" } },
-  "fire-escape-window": { w: { side: "w" }, e: { side: "e", offset: 6 } },
+  "fire-escape-window": { w: { side: "w" }, e: { side: "e" } },
   "fire-escape-mid": { w: { side: "w" }, up: { side: "n" } },
 
   // Ground (z=0)
@@ -59,8 +59,8 @@ const EXIT_ANCHORS: Partial<Record<SceneId, SceneAnchors>> = {
     s: { side: "s" },
     e: { side: "e" },
     w: { side: "w" },
-    up: { side: "n", offset: -6 },
-    down: { side: "s", offset: 6 },
+    up: { side: "n" },
+    down: { side: "s" },
   },
   elevator: { w: { side: "w" }, n: { side: "n" } },
   "security-desk": { s: { side: "s" }, w: { side: "w" } },
@@ -336,11 +336,20 @@ const LAYOUT: Partial<Record<number, Partial<Record<SceneId, { x: number; y: num
 export default function Minimap_ALT({
   currentId,
   z,
-  nodeSize = 18,
-  padding = 18,
+  nodeSize = 10,
+  padding = 10,
   exitLeadPx,
   className,
-}: MinimapALTProps) {
+
+  // NEW: “camera window” controls
+  windowPx = 210,          // radius (in layout pixels) around current node
+  windowPaddingPx = 26,    // extra padding so lines aren’t clipped
+}: MinimapALTProps & {
+  /** radius in layout pixels around current node to include nodes */
+  windowPx?: number;
+  /** extra slack around the window for path/lead lines */
+  windowPaddingPx?: number;
+}) {
   const currentScene = sceneGraph[currentId];
   const floor = typeof z === "number" ? z : currentScene.z;
 
@@ -348,44 +357,81 @@ export default function Minimap_ALT({
   const leadPx = exitLeadPx ?? Math.max(12, Math.round(nodeSize * 0.9));
 
   const { nodes, edges, view } = useMemo(() => {
-    const entries = Object.entries(sceneGraph) as [SceneId, (typeof sceneGraph)[SceneId]][];
+    const entries = Object.entries(sceneGraph) as [
+      SceneId,
+      (typeof sceneGraph)[SceneId]
+    ][];
     const floorScenes = entries.filter(([_, s]) => s.z === floor);
 
     const layout = LAYOUT[floor] ?? {};
     const fallbackSpacing = 55;
 
-    const nodes: Node[] = floorScenes.map(([id, s]) => {
+    // Build all nodes for the floor
+    const allNodes: Node[] = floorScenes.map(([id, s]) => {
       const pos = layout[id];
       if (pos) return { id, x: pos.x, y: pos.y };
       return { id, x: s.x * fallbackSpacing, y: -s.y * fallbackSpacing };
     });
 
+    const byIdAll = new Map<SceneId, Node>(allNodes.map((n) => [n.id, n]));
+    const center = byIdAll.get(currentId);
+
+    // Safety fallback: if no center node (shouldn't happen), show everything
+    const cx = center?.x ?? 0;
+    const cy = center?.y ?? 0;
+
+    // Keep only nodes within windowPx (circle-ish) of current node
+    const keep = new Set<SceneId>();
+    for (const n of allNodes) {
+      const dx = n.x - cx;
+      const dy = n.y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy) - 40;
+      if (dist <= windowPx) keep.add(n.id);
+    }
+
+    // Always keep current node (even if windowPx tiny)
+    keep.add(currentId);
+
+    const nodes: Node[] = allNodes.filter((n) => keep.has(n.id));
     const byId = new Map<SceneId, Node>(nodes.map((n) => [n.id, n]));
+
+    // Build edges, but only if at least one endpoint is in window.
+    // (This keeps connectors that cross the window boundary from disappearing abruptly.)
     const seen = new Set<string>();
     const edges: Edge[] = [];
 
     for (const [id, s] of floorScenes) {
       const exits = s.exits as any;
 
+      // Cardinal edges (same floor)
       (["n", "e", "s", "w"] as const).forEach((dir) => {
         const to = exits[dir] as SceneId | undefined;
         if (!to) return;
+
         const toScene = sceneGraph[to];
         if (!toScene || toScene.z !== floor) return;
+
+        // Only draw if either endpoint is visible
+        if (!keep.has(id) && !keep.has(to)) return;
 
         const key = uniqEdgeKey(id, to);
         if (seen.has(key)) return;
         seen.add(key);
 
-        if (!byId.has(id) || !byId.has(to)) return;
+        // Only render path if we have node coords for both endpoints
+        if (!byIdAll.has(id) || !byIdAll.has(to)) return;
         edges.push({ a: id, b: to, kind: "same" });
       });
 
+      // Vertical edges (stub only from visible nodes)
       (["up", "down"] as const).forEach((dir) => {
         const to = exits[dir] as SceneId | undefined;
         if (!to) return;
+
         const toScene = sceneGraph[to];
         if (!toScene || toScene.z === floor) return;
+
+        if (!keep.has(id)) return;
 
         const key = `${id}__${dir}`;
         if (seen.has(key)) return;
@@ -395,20 +441,22 @@ export default function Minimap_ALT({
       });
     }
 
-    const xs = nodes.map((n) => n.x);
-    const ys = nodes.map((n) => n.y);
+    // ViewBox becomes a “camera window” centered on current node.
+    // Add padding to avoid clipping lead-outs/turns.
+    const halfW = windowPx + windowPaddingPx;
+    const halfH = windowPx + windowPaddingPx;
 
-    const minX = Math.min(...xs) - padding;
-    const maxX = Math.max(...xs) + padding;
-    const minY = Math.min(...ys) - padding;
-    const maxY = Math.max(...ys) + padding;
+    const minX = cx - halfW;
+    const minY = cy - halfH;
+    const width = halfW * 2;
+    const height = halfH * 2;
 
     return {
       nodes,
       edges,
-      view: { minX, minY, width: maxX - minX, height: maxY - minY },
+      view: { minX, minY, width, height },
     };
-  }, [floor, padding]);
+  }, [currentId, floor, padding, nodeSize, leadPx, windowPx, windowPaddingPx]);
 
   const byId = useMemo(() => {
     const m = new Map<SceneId, Node>();
@@ -420,7 +468,7 @@ export default function Minimap_ALT({
   const dimStroke = "rgba(255,255,255,0.55)";
 
   return (
-    <div className={className} style={{ width: "fit-content" }}>
+    <div className={className} style={{ width: "fit-content", background: "green", opacity: 0.5 }}>
       <svg
         width={Math.max(240, view.width)}
         height={Math.max(180, view.height)}
@@ -429,18 +477,28 @@ export default function Minimap_ALT({
       >
         {/* Edges */}
         {edges.map((e, i) => {
-          const a = byId.get(e.a);
-          if (!a) return null;
+          const a = (LAYOUT[floor]?.[e.a] ? byId.get(e.a) : undefined) ?? byId.get(e.a);
+          // we still need coordinates even if node is not in window (edge can touch boundary),
+          // so pull from full layout via sceneGraph fallback when missing.
+          const aNode =
+            a ??
+            (() => {
+              const s = sceneGraph[e.a];
+              const fallbackSpacing = 55;
+              const pos = LAYOUT[floor]?.[e.a];
+              return pos
+                ? ({ id: e.a, x: pos.x, y: pos.y } as Node)
+                : ({ id: e.a, x: s.x * fallbackSpacing, y: -s.y * fallbackSpacing } as Node);
+            })();
 
-          // vertical dashed stub (up/down) — also lead-out enforced if explicitly anchored
           if (e.kind === "vertical") {
             const isUp = (sceneGraph[e.a].exits as any).up === e.b;
             const dirKey = isUp ? "up" : "down";
 
             const explicit = EXIT_ANCHORS[e.a]?.[dirKey];
             const base = explicit
-              ? anchoredPoint(a, nodeSize, explicit)
-              : anchoredPoint(a, nodeSize, { side: isUp ? "n" : "s" });
+              ? anchoredPoint(aNode, nodeSize, explicit)
+              : anchoredPoint(aNode, nodeSize, { side: isUp ? "n" : "s" });
 
             const p0 = { x: base.x, y: base.y };
             const p1 = moveAlongSide(p0, base.side, leadPx);
@@ -459,15 +517,22 @@ export default function Minimap_ALT({
             );
           }
 
-          const b = byId.get(e.b);
-          if (!b) return null;
+          const b = byId.get(e.b) ??
+            (() => {
+              const s = sceneGraph[e.b];
+              const fallbackSpacing = 55;
+              const pos = LAYOUT[floor]?.[e.b];
+              return pos
+                ? ({ id: e.b, x: pos.x, y: pos.y } as Node)
+                : ({ id: e.b, x: s.x * fallbackSpacing, y: -s.y * fallbackSpacing } as Node);
+            })();
 
           const dirAB = findDir(e.a, e.b);
           const dirBA = findDir(e.b, e.a);
           if (!dirAB || !dirBA) return null;
 
-          const A = getExplicitOrAutoAnchor(a, b, dirAB, nodeSize);
-          const B = getExplicitOrAutoAnchor(b, a, dirBA, nodeSize);
+          const A = getExplicitOrAutoAnchor(aNode, b, dirAB, nodeSize);
+          const B = getExplicitOrAutoAnchor(b, aNode, dirBA, nodeSize);
 
           const spec = getRouteSpec(e.a, e.b, dirAB);
           const d = orthoPathWithTurnsAndLeads(A, B, spec, leadPx);
@@ -511,3 +576,4 @@ export default function Minimap_ALT({
     </div>
   );
 }
+

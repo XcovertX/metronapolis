@@ -1,12 +1,14 @@
 // app/components/Hud.tsx
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useLoopState } from "./LoopStateContext";
 import { getExit, getScene, sceneGraph, type Direction } from "../game/sceneGraph";
 import OptionsWindow from "./OptionsPanel";
-import MiniMap from "./MiniMap";
 import Minimap_ALT from "./Minimap_ALT";
+import InventoryPopup from "./InventoryPopup";
+import { useExamineMode } from "./ExamineModeContext";
+
 
 const DIRS: Direction[] = ["n", "e", "s", "w", "up", "down"];
 
@@ -46,7 +48,8 @@ export default function Hud() {
   const { scene, sceneDef, timeMinutes, loopCount, inventory, credits } = useLoopState();
 
   const inv = inventory ?? [];
-
+  const [invOpen, setInvOpen] = useState(false);
+ 
   // Small “signal jitter” for the CRT feel (pure CSS, no re-render needed)
   const jitter = useMemo(() => clamp(((timeMinutes * 37) % 10) / 100, 0, 0.09), [timeMinutes]);
 
@@ -175,96 +178,36 @@ export default function Hud() {
               <span>CREDITS: {credits}</span>
               <span>INV: {inventory.length}</span>
             </div>
+             <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={() => setInvOpen(true)}
+            style={{
+              border: "1px solid rgba(0,255,210,0.25)",
+              background: "rgba(0,0,0,0.55)",
+              color: "rgba(210,255,245,0.95)",
+              borderRadius: 10,
+              padding: "8px 10px",
+              cursor: "pointer",
+              fontSize: 11,
+              letterSpacing: 1,
+              textTransform: "uppercase",
+              pointerEvents: "auto",
+            }}
+          >
+            Inventory
+          </button>
+        </div>
           </HudPanel>
 
-          <HudPanel style={{ width: 440 }}>
+
+          <HudPanel style={{  }}>
             <CornerCut />
-            <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65, marginBottom: 10 }}>
+            <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65, marginBottom: 10  }}>
               MINIMAP
             </div>
-            <Minimap_ALT currentId={scene} z={sceneGraph[scene]?.z}/>
+            <Minimap_ALT currentId={scene} z={sceneGraph[scene]?.z} windowPx={50} />
           </HudPanel>
-        </div>
-
-        {/* Inventory panel */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 300,
-            left: 14,
-            width: 380,
-          }}
-        >
-          <HudPanel>
-            <CornerCut />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65 }}>
-                INVENTORY
-              </div>
-              <div style={{ fontSize: 10, letterSpacing: 1, opacity: 0.55 }}>
-                {inv.length} ITEMS
-              </div>
-            </div>
-
-            <div
-              style={{
-                marginTop: 10,
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-              }}
-            >
-              {inv.length === 0 ? (
-                <span style={{ fontSize: 12, opacity: 0.65 }}>
-                  (empty)
-                </span>
-              ) : (
-                inv.map((item) => (
-                  <span
-                    key={item.id}
-                    title={item.description}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "4px 8px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(0,255,210,0.25)",
-                      background: "rgba(0,0,0,0.45)",
-                      boxShadow: "inset 0 0 0 1px rgba(0,255,210,0.08)",
-                      fontSize: 12,
-                      letterSpacing: 0.3,
-                    }}
-                  >
-                    <span
-                      aria-hidden
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: 2,
-                        background: "rgba(0,255,210,0.75)",
-                        boxShadow: "0 0 10px rgba(0,255,210,0.25)",
-                      }}
-                    />
-                    {item.name}
-                  </span>
-                ))
-              )}
-            </div>
-          </HudPanel>
-          
-        </div>
-
-        {/* Right-side status strip */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 330,
-            right: 14,
-            width: 260,
-          }}
-        >
-          <HudPanel>
+                    <HudPanel>
             <CornerCut />
             <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65 }}>
               SYSTEM
@@ -289,6 +232,18 @@ export default function Hud() {
               HUD v0.1 • CRT MODE
             </div>
           </HudPanel>
+        </div>
+
+        {/* Right-side status strip */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 330,
+            left: 14,
+            width: 260,
+          }}
+        >
+          
           <OptionsWindow />
         </div>
       </div>
@@ -301,7 +256,7 @@ export default function Hud() {
           50% { opacity: 0.98; }
         }
       `}</style>
-      
+      <InventoryPopup open={invOpen} onClose={() => setInvOpen(false)} />
     </>
   );
 }

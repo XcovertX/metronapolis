@@ -196,12 +196,27 @@ export default function OptionsWindow() {
           bottom: 14,
           left: 14,
           width: 380,
-          pointerEvents: "auto", // ✅ allow clicking
+          pointerEvents: "auto", 
           zIndex: 60,
         }}
       >
-        <HudPanel title="ACTIONS" subtitle="INTERACT">
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+
+      </div>
+
+      {/* Movement D-pad (bottom-right) */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 14,
+          right: 14,
+          width: 260,
+          pointerEvents: "auto", 
+          zIndex: 60,
+        }}
+      >
+        <div className="">
+          <HudPanel title="ACTIONS" subtitle="INTERACT" style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }} >
             {actions.length ? (
               actions.map((opt) => (
                 <button
@@ -228,19 +243,7 @@ export default function OptionsWindow() {
             )}
           </div>
         </HudPanel>
-      </div>
-
-      {/* Movement D-pad (bottom-right) */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 14,
-          right: 14,
-          width: 260,
-          pointerEvents: "auto", // ✅ allow clicking
-          zIndex: 60,
-        }}
-      >
+        
         <HudPanel title="MOVE" subtitle={movementLocked ? "LOCKED" : "D-PAD"}>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 10 }}>
             <SmallMoveButton opt={up} label="UP" disabled={movementLocked} />
@@ -274,6 +277,7 @@ export default function OptionsWindow() {
             {movementLocked ? "Movement disabled during dialog" : "Tap a direction to move"}
           </div>
         </HudPanel>
+        </div>
       </div>
     </>
   );
