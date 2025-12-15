@@ -12,10 +12,13 @@ type MinimapALTProps = {
   nodeSize?: number;
   /** padding around content */
   padding?: number;
+  /** minimum distance a path must travel straight out of an exit before any turn */
+  exitLeadPx?: number;
   className?: string;
 };
 
 type AnchorSide = "n" | "e" | "s" | "w";
+type Axis = "x" | "y";
 
 type ExitAnchor = {
   side: AnchorSide;
@@ -26,16 +29,11 @@ type ExitAnchor = {
 type SceneAnchors = Partial<Record<"n" | "e" | "s" | "w" | "up" | "down", ExitAnchor>>;
 
 /**
- * USER-FRIENDLY ANCHOR PICKING:
- * - Edit this map to control exactly where each exit leaves a node square.
- * - side: which edge of the square the line connects to
- * - offset: shifts the anchor along that edge (px), helpful to reduce overlap
- *
- * Any missing exit anchor falls back to an automatic "best guess" based on
- * the relative position of the connected scene.
+ * Designers edit THIS to choose which edge an exit uses (and small offsets).
+ * Missing entries fall back to automatic anchors.
  */
 const EXIT_ANCHORS: Partial<Record<SceneId, SceneAnchors>> = {
-  // ───────── Apartment (z=1)
+  // Apartment (z=1)
   "apt-living": {
     w: { side: "w" },
     e: { side: "e" },
@@ -46,53 +44,53 @@ const EXIT_ANCHORS: Partial<Record<SceneId, SceneAnchors>> = {
   "apt-kitchen": { w: { side: "w" }, n: { side: "n" } },
   "apt-bathroom": { s: { side: "s" } },
   "utility-closet": { s: { side: "s" } },
-
-  // hallway feels isolated: force longer run + clean attachment points
   "apt-hallway": {
-    n: { side: "n", offset: -6 }, // to living
-    e: { side: "e" }, // to fire escape window
-    s: { side: "s" }, // to neighbor door (in our layout)
-    down: { side: "s", offset: 6 }, // vertical down to lobby
+    n: { side: "n", offset: -4 },
+    e: { side: "e" },
+    w: { side: "w" },
+    down: { side: "s", offset: 6 },
   },
-  "neighbor-door": { n: { side: "n" } },
-
-  // fire escape path
+  "neighbor-door": { e: { side: "e" } },
   "fire-escape-window": { w: { side: "w" }, e: { side: "e", offset: 6 } },
   "fire-escape-mid": { w: { side: "w" }, up: { side: "n" } },
 
-  // ───────── Ground (z=0)
+  // Ground (z=0)
   lobby: {
-    s: { side: "s" }, // to street-front
-    e: { side: "e" }, // to elevator
-    w: { side: "w" }, // to stairwell-mid
-    up: { side: "n", offset: -6 }, // to apt-hallway
-    down: { side: "s", offset: 6 }, // to basement-storage
+    s: { side: "s" },
+    e: { side: "e" },
+    w: { side: "w" },
+    up: { side: "n", offset: -6 },
+    down: { side: "s", offset: 6 },
   },
   elevator: { w: { side: "w" }, n: { side: "n" } },
   "security-desk": { s: { side: "s" }, w: { side: "w" } },
   "maintenance-office": { e: { side: "e" }, n: { side: "n" } },
-  "service-hall": {
-    s: { side: "s" },
-    w: { side: "w" },
-    e: { side: "e" },
-    n: { side: "n", offset: -6 },
-  },
-
+  "service-hall": { s: { side: "s" }, w: { side: "w" }, e: { side: "e" }, n: { side: "n" } },
   "street-front": { n: { side: "n" }, s: { side: "s" }, w: { side: "w" }, e: { side: "e" } },
   "sidewalk-north": { s: { side: "s" }, n: { side: "n" }, w: { side: "w" }, e: { side: "e" } },
   "sidewalk-south": { n: { side: "n" }, s: { side: "s" }, w: { side: "w" }, e: { side: "e" } },
+};
 
-  // ───────── Basement / Roof (optional examples)
-  "basement-storage": { e: { side: "e" }, up: { side: "n" } },
-  "boiler-room": { w: { side: "w" } },
-
-  rooftop: { e: { side: "e" }, s: { side: "s" } },
-  "rooftop-door": { w: { side: "w" }, e: { side: "e" } },
-  "fire-escape-top": { w: { side: "w" }, down: { side: "s" } },
+/**
+ * Designers edit THIS to choose how “wiggly” a long connection is.
+ * - Key by source+dir: "apt-hallway:n" (recommended)
+ * - Or by pair: "apt-hallway->apt-living"
+ */
+type RouteSpec = {
+  turns: 1 | 2 | 3 | 4;
+  startAxis?: Axis;
+  detourPx?: number;
+};
+const ROUTE_SPECS: Partial<Record<string, RouteSpec>> = {
+  "apt-hallway:n": { turns: 3, startAxis: "x", detourPx: 20 },
+  "apt-hallway:e": { turns: 2, startAxis: "x", detourPx: 16 },
+  "alley-entrance->alley-mid": { turns: 2, startAxis: "x", detourPx: 10 },
 };
 
 type Node = { id: SceneId; x: number; y: number };
 type Edge = { a: SceneId; b: SceneId; kind: "same" | "vertical" };
+
+type AnchorPoint = { x: number; y: number; side: AnchorSide };
 
 function uniqEdgeKey(a: string, b: string) {
   return a < b ? `${a}__${b}` : `${b}__${a}`;
@@ -102,7 +100,6 @@ function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
 
-/** Automatic fallback anchor side based on relative position (only used if no explicit anchor is set). */
 function autoAnchorSide(from: Node, to: Node): AnchorSide {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -110,58 +107,165 @@ function autoAnchorSide(from: Node, to: Node): AnchorSide {
   return dy >= 0 ? "s" : "n";
 }
 
-/** Convert an anchor declaration into an actual perimeter point on the node square. */
-function anchoredPoint(node: Node, size: number, anchor: ExitAnchor): { x: number; y: number } {
+function anchoredPoint(node: Node, size: number, anchor: ExitAnchor): AnchorPoint {
   const half = size / 2;
   const o = anchor.offset ?? 0;
   switch (anchor.side) {
     case "n":
-      return { x: node.x + o, y: node.y - half };
+      return { x: node.x + o, y: node.y - half, side: "n" };
     case "s":
-      return { x: node.x + o, y: node.y + half };
+      return { x: node.x + o, y: node.y + half, side: "s" };
     case "e":
-      return { x: node.x + half, y: node.y + o };
+      return { x: node.x + half, y: node.y + o, side: "e" };
     case "w":
-      return { x: node.x - half, y: node.y + o };
+      return { x: node.x - half, y: node.y + o, side: "w" };
+  }
+}
+
+function findDir(from: SceneId, to: SceneId): "n" | "e" | "s" | "w" | undefined {
+  const exits = sceneGraph[from].exits as any;
+  if (exits.n === to) return "n";
+  if (exits.e === to) return "e";
+  if (exits.s === to) return "s";
+  if (exits.w === to) return "w";
+  return undefined;
+}
+
+function getExplicitOrAutoAnchor(from: Node, to: Node, dir: "n" | "e" | "s" | "w", size: number): AnchorPoint {
+  const explicit = EXIT_ANCHORS[from.id]?.[dir];
+  if (explicit) return anchoredPoint(from, size, explicit);
+  return anchoredPoint(from, size, { side: autoAnchorSide(from, to) });
+}
+
+function routeKeyDir(a: SceneId, dir: "n" | "e" | "s" | "w") {
+  return `${a}:${dir}`;
+}
+function routeKeyPair(a: SceneId, b: SceneId) {
+  return `${a}->${b}`;
+}
+function getRouteSpec(a: SceneId, b: SceneId, dirAB?: "n" | "e" | "s" | "w"): RouteSpec | undefined {
+  if (dirAB) {
+    const byDir = ROUTE_SPECS[routeKeyDir(a, dirAB)];
+    if (byDir) return byDir;
+  }
+  return ROUTE_SPECS[routeKeyPair(a, b)] ?? ROUTE_SPECS[routeKeyPair(b, a)];
+}
+
+function moveAlongSide(p: { x: number; y: number }, side: AnchorSide, dist: number) {
+  switch (side) {
+    case "n":
+      return { x: p.x, y: p.y - dist };
+    case "s":
+      return { x: p.x, y: p.y + dist };
+    case "e":
+      return { x: p.x + dist, y: p.y };
+    case "w":
+      return { x: p.x - dist, y: p.y };
   }
 }
 
 /**
- * Orthogonal routing with optional dogleg for long runs.
- * Returns an SVG path string "d".
+ * Build an orthogonal polyline with a designer-specified number of turns,
+ * AND enforce "lead-out" / "lead-in" so lines don't immediately run along a square's edge.
+ *
+ * - Start at A (on perimeter), go straight OUT by leadPx in A.side before any turns.
+ * - Route in the middle.
+ * - End by coming straight IN toward B (approach point), then final straight segment onto B.
  */
-function orthPath(ax: number, ay: number, bx: number, by: number) {
+function orthoPathWithTurnsAndLeads(A: AnchorPoint, B: AnchorPoint, spec: RouteSpec | undefined, leadPx: number) {
+  const a0 = { x: A.x, y: A.y };
+  const b0 = { x: B.x, y: B.y };
+
+  // Points immediately outside/inside the node squares.
+  const a1 = moveAlongSide(a0, A.side, leadPx);
+  const b1 = moveAlongSide(b0, B.side, leadPx); // we will route to this "approach" point, then go straight to b0
+
+  const ax = a1.x;
+  const ay = a1.y;
+  const bx = b1.x;
+  const by = b1.y;
+
   const dx = bx - ax;
   const dy = by - ay;
-
   const adx = Math.abs(dx);
   const ady = Math.abs(dy);
 
-  // Simple L for short connections
-  if (adx < 60 || ady < 60) {
-    const mx = ax + dx * 0.6;
-    return `M ${ax} ${ay} L ${mx} ${ay} L ${mx} ${by} L ${bx} ${by}`;
+  const isShort = adx < 60 || ady < 60;
+  const turns: number = spec?.turns ?? (isShort ? 1 : 2);
+  const startAxis: Axis = spec?.startAxis ?? (adx >= ady ? "x" : "y");
+  const detour =
+    spec?.detourPx ??
+    (turns >= 2 && !isShort ? clamp(Math.min(adx, ady) * 0.12, 8, 22) : 0);
+
+  const points: Array<{ x: number; y: number }> = [];
+
+  // Always include the forced lead-out
+  points.push(a0);
+  points.push(a1);
+
+  const segments = turns + 1;
+
+  const xMoves = startAxis === "x" ? Math.ceil(segments / 2) : Math.floor(segments / 2);
+  const yMoves = segments - xMoves;
+
+  const xTargets: number[] = [];
+  const yTargets: number[] = [];
+
+  for (let i = 1; i < xMoves; i++) xTargets.push(ax + (dx * i) / xMoves);
+  for (let i = 1; i < yMoves; i++) yTargets.push(ay + (dy * i) / yMoves);
+
+  let curX = ax;
+  let curY = ay;
+  let xi = 0;
+  let yi = 0;
+
+  for (let s = 0; s < segments; s++) {
+    const axis: Axis = (startAxis === "x" ? s % 2 === 0 : s % 2 === 1) ? "x" : "y";
+
+    if (axis === "x") {
+      const nextX = s === segments - 1 ? bx : xTargets[xi++] ?? bx;
+      const nudgeY = detour && s > 0 && s < segments - 1 ? (s % 4 < 2 ? detour : -detour) : 0;
+      curX = nextX;
+      points.push({ x: curX, y: curY + nudgeY });
+      curY = curY + nudgeY;
+    } else {
+      const nextY = s === segments - 1 ? by : yTargets[yi++] ?? by;
+      const nudgeX = detour && s > 0 && s < segments - 1 ? (s % 4 < 2 ? -detour : detour) : 0;
+      curY = nextY;
+      points.push({ x: curX + nudgeX, y: curY });
+      curX = curX + nudgeX;
+    }
   }
 
-  // Longer run: add a second bend to feel more organic
-  const signX = dx >= 0 ? 1 : -1;
-  const signY = dy >= 0 ? 1 : -1;
+  // Enforce lead-in then final straight onto B
+  points.push(b1);
+  points.push(b0);
 
-  const dog = clamp(Math.min(adx, ady) * 0.25, 20, 70);
+  // Cleanup collinear/duplicate points (keeps SVG paths tidy)
+  const cleaned: typeof points = [];
+  for (const p of points) {
+    const last = cleaned[cleaned.length - 1];
+    if (last && last.x === p.x && last.y === p.y) continue;
+    cleaned.push(p);
+  }
 
-  const p1x = ax + signX * (adx * 0.45);
-  const p1y = ay;
+  // remove middle point if it lies on straight line between neighbors (collinear)
+  const simplified: typeof cleaned = [cleaned[0]];
+  for (let i = 1; i < cleaned.length - 1; i++) {
+    const prev = simplified[simplified.length - 1];
+    const cur = cleaned[i];
+    const next = cleaned[i + 1];
+    const collinear =
+      (prev.x === cur.x && cur.x === next.x) || (prev.y === cur.y && cur.y === next.y);
+    if (collinear) continue;
+    simplified.push(cur);
+  }
+  simplified.push(cleaned[cleaned.length - 1]);
 
-  const p2x = p1x;
-  const p2y = ay + signY * dog;
-
-  const p3x = bx - signX * (adx * 0.25);
-  const p3y = p2y;
-
-  const p4x = p3x;
-  const p4y = by;
-
-  return `M ${ax} ${ay} L ${p1x} ${p1y} L ${p2x} ${p2y} L ${p3x} ${p3y} L ${p4x} ${p4y} L ${bx} ${by}`;
+  return simplified.reduce((acc, p, idx) => {
+    if (idx === 0) return `M ${p.x} ${p.y}`;
+    return `${acc} L ${p.x} ${p.y}`;
+  }, "");
 }
 
 /**
@@ -175,14 +279,11 @@ const LAYOUT: Partial<Record<number, Partial<Record<SceneId, { x: number; y: num
     "apt-kitchen": { x: 190, y: 90 },
     "apt-bathroom": { x: 140, y: 40 },
     "utility-closet": { x: 190, y: 40 },
-
     "apt-hallway": { x: 280, y: 170 },
-    "neighbor-door": { x: 280, y: 235 },
-
+    "neighbor-door": { x: 190, y: 170 },
     "fire-escape-window": { x: 360, y: 170 },
     "fire-escape-mid": { x: 430, y: 140 },
   },
-
   0: {
     lobby: { x: 260, y: 210 },
     elevator: { x: 320, y: 195 },
@@ -192,50 +293,38 @@ const LAYOUT: Partial<Record<number, Partial<Record<SceneId, { x: number; y: num
     "building-laundry": { x: 220, y: 110 },
     "stairwell-mid": { x: 200, y: 190 },
     "courtyard-int": { x: 360, y: 110 },
-
     "street-front": { x: 260, y: 280 },
     "sidewalk-north": { x: 260, y: 335 },
     "sidewalk-south": { x: 260, y: 230 },
-
     "courtyard-ext": { x: 355, y: 230 },
     "service-door": { x: 330, y: 260 },
     "loading-zone": { x: 160, y: 240 },
-
     "alley-entrance": { x: 345, y: 300 },
     "alley-mid": { x: 420, y: 300 },
     dumpster: { x: 495, y: 300 },
     "dead-end": { x: 570, y: 300 },
-
     "bike-rack": { x: 170, y: 300 },
     "side-street-west": { x: 95, y: 300 },
-
     "store-front": { x: 260, y: 405 },
     "store-interior": { x: 260, y: 470 },
     "store-stock": { x: 260, y: 535 },
-
     "laundromat-front": { x: 170, y: 405 },
     "laundromat-interior": { x: 170, y: 470 },
-
     "streetlight": { x: 340, y: 335 },
     "cafe-front": { x: 340, y: 405 },
     "cafe-interior": { x: 340, y: 470 },
     "cafe-back": { x: 300, y: 470 },
-
     "clinic-front": { x: 430, y: 335 },
     "clinic-waiting": { x: 430, y: 405 },
     "phone-booth": { x: 520, y: 335 },
-
     "ticket-kiosk": { x: 90, y: 470 },
     "transit-platform": { x: 30, y: 470 },
-
     "side-street-east": { x: 430, y: 260 },
   },
-
   [-1]: {
     "basement-storage": { x: 220, y: 120 },
     "boiler-room": { x: 310, y: 120 },
   },
-
   2: {
     "fire-escape-top": { x: 430, y: 110 },
     "rooftop-door": { x: 360, y: 110 },
@@ -244,32 +333,19 @@ const LAYOUT: Partial<Record<number, Partial<Record<SceneId, { x: number; y: num
   },
 };
 
-function findDir(from: SceneId, to: SceneId): "n" | "e" | "s" | "w" | undefined {
-  const exits = sceneGraph[from].exits as any;
-  if (exits.n === to) return "n";
-  if (exits.e === to) return "e";
-  if (exits.s === to) return "s";
-  if (exits.w === to) return "w";
-  return undefined;
-}
-
-function getExplicitOrAutoAnchor(from: Node, to: Node, dir: "n" | "e" | "s" | "w", size: number) {
-  const explicit = EXIT_ANCHORS[from.id]?.[dir];
-  if (explicit) return anchoredPoint(from, size, explicit);
-
-  // auto fallback if not specified
-  return anchoredPoint(from, size, { side: autoAnchorSide(from, to) });
-}
-
 export default function Minimap_ALT({
   currentId,
   z,
   nodeSize = 18,
   padding = 18,
+  exitLeadPx,
   className,
 }: MinimapALTProps) {
   const currentScene = sceneGraph[currentId];
   const floor = typeof z === "number" ? z : currentScene.z;
+
+  // Default lead distance: proportional to node size, but never tiny.
+  const leadPx = exitLeadPx ?? Math.max(12, Math.round(nodeSize * 0.9));
 
   const { nodes, edges, view } = useMemo(() => {
     const entries = Object.entries(sceneGraph) as [SceneId, (typeof sceneGraph)[SceneId]][];
@@ -281,12 +357,10 @@ export default function Minimap_ALT({
     const nodes: Node[] = floorScenes.map(([id, s]) => {
       const pos = layout[id];
       if (pos) return { id, x: pos.x, y: pos.y };
-      // fallback if you add scenes later
       return { id, x: s.x * fallbackSpacing, y: -s.y * fallbackSpacing };
     });
 
     const byId = new Map<SceneId, Node>(nodes.map((n) => [n.id, n]));
-
     const seen = new Set<string>();
     const edges: Edge[] = [];
 
@@ -303,9 +377,7 @@ export default function Minimap_ALT({
         if (seen.has(key)) return;
         seen.add(key);
 
-        // only draw if both nodes exist on this floor (should)
         if (!byId.has(id) || !byId.has(to)) return;
-
         edges.push({ a: id, b: to, kind: "same" });
       });
 
@@ -360,23 +432,24 @@ export default function Minimap_ALT({
           const a = byId.get(e.a);
           if (!a) return null;
 
-          // vertical: dashed stub (up/down)
+          // vertical dashed stub (up/down) — also lead-out enforced if explicitly anchored
           if (e.kind === "vertical") {
             const isUp = (sceneGraph[e.a].exits as any).up === e.b;
-            const half = nodeSize / 2;
+            const dirKey = isUp ? "up" : "down";
 
-            const explicit = EXIT_ANCHORS[e.a]?.[isUp ? "up" : "down"];
+            const explicit = EXIT_ANCHORS[e.a]?.[dirKey];
             const base = explicit
               ? anchoredPoint(a, nodeSize, explicit)
-              : { x: a.x, y: a.y + (isUp ? -half : half) };
+              : anchoredPoint(a, nodeSize, { side: isUp ? "n" : "s" });
 
-            const len = 36;
-            const end = { x: base.x, y: base.y + (isUp ? -len : len) };
+            const p0 = { x: base.x, y: base.y };
+            const p1 = moveAlongSide(p0, base.side, leadPx);
+            const p2 = moveAlongSide(p1, base.side, 24);
 
             return (
               <path
                 key={`v-${i}`}
-                d={`M ${base.x} ${base.y} L ${end.x} ${end.y}`}
+                d={`M ${p0.x} ${p0.y} L ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`}
                 fill="none"
                 stroke={dimStroke}
                 strokeWidth={2}
@@ -391,27 +464,13 @@ export default function Minimap_ALT({
 
           const dirAB = findDir(e.a, e.b);
           const dirBA = findDir(e.b, e.a);
-
-          // fallback if data is weird
-          if (!dirAB || !dirBA) {
-            const d = orthPath(a.x, a.y, b.x, b.y);
-            return (
-              <path
-                key={`e-${i}`}
-                d={d}
-                fill="none"
-                stroke={dimStroke}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            );
-          }
+          if (!dirAB || !dirBA) return null;
 
           const A = getExplicitOrAutoAnchor(a, b, dirAB, nodeSize);
           const B = getExplicitOrAutoAnchor(b, a, dirBA, nodeSize);
 
-          const d = orthPath(A.x, A.y, B.x, B.y);
+          const spec = getRouteSpec(e.a, e.b, dirAB);
+          const d = orthoPathWithTurnsAndLeads(A, B, spec, leadPx);
 
           return (
             <path

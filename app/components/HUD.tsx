@@ -279,7 +279,7 @@ export default function Hud() {
             <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65, marginBottom: 10 }}>
               MINIMAP
             </div>
-            <Minimap_ALT currentId={scene} z={sceneGraph[scene].z} />
+            <Minimap_ALT currentId={scene} z={sceneGraph[scene]?.z}/>
           </HudPanel>
         </div>
 
