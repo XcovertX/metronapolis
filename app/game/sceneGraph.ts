@@ -68,15 +68,67 @@ export const sceneGraph = {
     exits: { n: "apt-living", w: "neighbor-door", e: "fire-escape-window", down: "lobby" },
     tags: ["interior", "building"],
   },
-  "neighbor-door": {
-    id: "neighbor-door",
-    title: "Neighbor’s Door",
-    x: -1,
-    y: -1,
-    z: 1,
-    exits: { e: "apt-hallway" },
-    tags: ["interior", "building"],
-  },
+// Neighbor apartment (z=1)
+"neighbor-door": {
+  id: "neighbor-door",
+  title: "Neighbor’s Door",
+  x: -1,
+  y: -1,
+  z: 1,
+  // add "w" into neighbor apartment
+  exits: { e: "apt-hallway", w: "neighbor-foyer" },
+  tags: ["interior", "building"],
+},
+
+"neighbor-foyer": {
+  id: "neighbor-foyer",
+  title: "Neighbor — Foyer",
+  x: -2,
+  y: -1,
+  z: 1,
+  exits: { e: "neighbor-door", w: "neighbor-living", n: "neighbor-bath" },
+  tags: ["interior", "apartment"],
+},
+
+"neighbor-living": {
+  id: "neighbor-living",
+  title: "Neighbor — Living Room",
+  x: -3,
+  y: -1,
+  z: 1,
+  exits: { e: "neighbor-foyer", w: "neighbor-bedroom", s: "neighbor-kitchen" },
+  tags: ["interior", "apartment"],
+},
+
+"neighbor-bedroom": {
+  id: "neighbor-bedroom",
+  title: "Neighbor — Bedroom",
+  x: -4,
+  y: -1,
+  z: 1,
+  exits: { e: "neighbor-living" },
+  tags: ["interior", "apartment"],
+},
+
+"neighbor-kitchen": {
+  id: "neighbor-kitchen",
+  title: "Neighbor — Kitchenette",
+  x: -3,
+  y: -2,
+  z: 1,
+  exits: { n: "neighbor-living" },
+  tags: ["interior", "apartment"],
+},
+
+"neighbor-bath": {
+  id: "neighbor-bath",
+  title: "Neighbor — Bathroom",
+  x: -2,
+  y: 0,
+  z: 1,
+  exits: { s: "neighbor-foyer" },
+  tags: ["interior", "apartment"],
+},
   "fire-escape-window": {
     id: "fire-escape-window",
     title: "Fire Escape Window",

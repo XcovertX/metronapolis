@@ -45,7 +45,7 @@ function CornerCut() {
 }
 
 export default function Hud() {
-  const { scene, sceneDef, timeMinutes, loopCount, inventory, credits } = useLoopState();
+  const { scene, sceneDef, timeMinutes, loopCount, inventory, credits, flags } = useLoopState();
 
   const inv = inventory ?? [];
   const [invOpen, setInvOpen] = useState(false);
@@ -101,8 +101,10 @@ export default function Hud() {
             left: 14,
             right: 14,
             display: "flex",
+            flexDirection: "column",
             gap: 12,
             alignItems: "stretch",
+            width: "270px"
           }}
         >
           <HudPanel style={{ flex: 1, minHeight: 56 }}>
@@ -205,7 +207,23 @@ export default function Hud() {
             <div style={{ fontSize: 10, letterSpacing: 1.2, opacity: 0.65, marginBottom: 10  }}>
               MINIMAP
             </div>
-            <Minimap_ALT currentId={scene} z={sceneGraph[scene]?.z} windowPx={50} />
+            <Minimap_ALT
+              currentId={scene}
+              windowPx={50}
+              isVisibleScene={(id) => {
+                // hide neighbor apartment until unlocked
+                if (
+                  id === "neighbor-foyer" ||
+                  id === "neighbor-living" ||
+                  id === "neighbor-bedroom" ||
+                  id === "neighbor-kitchen" ||
+                  id === "neighbor-bath"
+                ) {
+                  return !!flags.neighborDoorUnlocked;
+                }
+                return true;
+              }}
+            />
           </HudPanel>
                     <HudPanel>
             <CornerCut />
@@ -232,6 +250,7 @@ export default function Hud() {
               HUD v0.1 • CRT MODE
             </div>
           </HudPanel>
+          {/* <OptionsWindow /> */}
         </div>
 
         {/* Right-side status strip */}

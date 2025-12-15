@@ -12,9 +12,11 @@ import React, {
   type ReactNode,
 } from "react";
 
-import { getScene, type SceneId } from "../game/sceneGraph";
-import { runTimeStep } from "../game/timeEngine";
-import { InventoryItem } from "../game/items/types";
+import { getScene, type SceneId } from "@/app/game/sceneGraph";
+import { runTimeStep } from "@/app/game/timeEngine";
+import { InventoryItem } from "@/app/game/items/types";
+import { canEnterScene } from "@/app/game/movementRules";
+
 
 export type LoopFlags = {
   hasWokenUp: boolean;
@@ -23,6 +25,10 @@ export type LoopFlags = {
   rheaMet?: boolean;
   rheaWarned?: boolean;
   catObserved?: boolean;
+  neighborDoorUnlocked?: boolean;
+  miloMet?: boolean;
+  vexMet?: boolean;
+  sableMet?: boolean;
 };
 
 export type NPCState = {

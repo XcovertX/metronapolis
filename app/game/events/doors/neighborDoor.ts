@@ -24,7 +24,7 @@ export const neighborDoorEvent: EventModule = {
         opts.push({
           id: "action-door-locked",
           kind: "action",
-          label: "Try the neighbor’s door (locked).",
+          label: "Unlock neighbor’s door.",
           onSelect: () => {
             h.advanceTime(TIME.DEFAULT_ACTION);
             h.pushMessage("Locked. You don't have the right key.");
@@ -43,6 +43,17 @@ export const neighborDoorEvent: EventModule = {
         });
       }
       return opts;
+    } else {
+      opts.push({
+      id: "action-lock-neighbor-door",
+      kind: "action",
+      label: "Lock the neighbor’s door.",
+      onSelect: () => {
+          h.advanceTime(TIME.DEFAULT_ACTION);
+          h.setFlags((prev: any) => ({ ...prev, [UNLOCK_FLAG]: false }));
+          h.pushMessage("The lock closes with a soft click.");
+        },
+      });
     }
 
     // Unlocked state (later you can route to a new scene)

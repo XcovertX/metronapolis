@@ -5,8 +5,11 @@ import BaseScene from "./BaseScene";
 import { useMemo } from "react";
 import { useLoopState } from "../LoopStateContext";
 import { useDialog } from "../DialogContext";
-import { TIME } from "../../game/timeRules";
-import { getEventOptions } from "../../game/events";
+import { TIME } from "@/app/game/timeRules";
+import { getEventOptions } from "@/app/game/events";
+import { canTraverse } from "@/app/game/movementRules";
+
+
 import {
   getScene,
   getExit,
@@ -69,11 +72,16 @@ export default function GraphScene() {
       const next = getExit(scene, dir);
       if (!next) continue;
 
+      const allowed = canTraverse(
+        scene,
+        dir,
+        next as SceneId,
+        { flags, inventory, npcState, timeMinutes }
+      );
+      if (!allowed) continue;
+
       const nextDef = getScene(next);
-      const timeCost =
-        dir === "up" || dir === "down"
-          ? TIME.VERTICAL_MOVE
-          : TIME.DEFAULT_ACTION;
+      const timeCost = dir === "up" || dir === "down" ? TIME.VERTICAL_MOVE : TIME.DEFAULT_ACTION;
 
       opts.push({
         id: `move-${dir}-${next}`,
@@ -81,12 +89,6 @@ export default function GraphScene() {
         dir,
         label: formatMoveLabel(dir, nextDef.title),
         onSelect: () => {
-          setFlags((prev: any) => {
-            if (!prev?.hide) return prev;
-            const next = { ...prev };
-            delete next.hide;
-            return next;
-          });
           advanceTime(timeCost);
           goToScene(next as SceneId);
         },
