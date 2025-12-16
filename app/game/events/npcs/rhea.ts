@@ -23,6 +23,7 @@ export const rhea: EventModule = {
           next: "rhea.who",
         },
       ],
+      image: "/sprites/rhea-portrait.jpg",
     },
     "rhea.clock": {
       id: "rhea.clock",
@@ -41,6 +42,7 @@ export const rhea: EventModule = {
           setFlags: (p) => ({ ...p, rheaWarned: true, rheaMet: true }),
         },
       ],
+      image: "/sprites/rhea-portrait.jpg",
     },
     "rhea.who": {
       id: "rhea.who",
@@ -53,12 +55,14 @@ export const rhea: EventModule = {
           setFlags: (p) => ({ ...p, rheaMet: true }),
         },
       ],
+      image: "/sprites/rhea-portrait.jpg",
     },
     "rhea.why": {
       id: "rhea.why",
       npc: "Rhea",
       text: "Because you’re the only one who comes back with the same eyes.",
       responses: [{ label: "…Right.", timeCost: TIME.DEFAULT_ACTION }],
+      image: "/sprites/rhea-portrait.jpg",
     },
   },
 

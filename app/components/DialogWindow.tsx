@@ -2,6 +2,7 @@
 "use client";
 
 import { useDialog } from "./DialogContext";
+import Image from "next/image";
 
 export default function DialogWindow() {
   const { activeNode, chooseResponse, endDialog } = useDialog();
@@ -51,38 +52,86 @@ export default function DialogWindow() {
             marginBottom: 14,
           }}
         >
+          {/* Player portrait */}
           <div
             style={{
               flex: 1,
-              height: 72,
-              borderRadius: 10,
-              border: "1px solid rgba(0,255,255,0.25)",
-              background: "rgba(0,0,0,0.75)",
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
-              justifyContent: "center",
-              fontSize: 12,
-              opacity: 0.9,
+              gap: 4,
             }}
           >
-            Casper
+            <div
+              style={{
+                width: 150,
+                height: 150,
+                borderRadius: 10,
+                border: "1px solid rgba(0,255,255,0.25)",
+                background: "rgba(0,0,0,0.75)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+              }}
+            >
+              <Image
+                src="/sprites/casper-portrait.jpg"
+                alt="Casper"
+                priority
+                width={150}
+                height={150}
+                style={{
+                  objectFit: "cover",
+                  width: "100%",
+                  height: "100%",
+                  backgroundColor: "black",
+                  imageRendering: "pixelated",
+                }}
+              />
+            </div>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>Casper</span>
           </div>
 
+          {/* NPC portrait */}
           <div
             style={{
               flex: 1,
-              height: 72,
-              borderRadius: 10,
-              border: "1px solid rgba(0,255,255,0.25)",
-              background: "rgba(0,0,0,0.75)",
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
-              justifyContent: "center",
-              fontSize: 12,
-              opacity: 0.9,
+              gap: 4,
             }}
           >
-            {activeNode.npc}
+            <div
+              style={{
+                width: 150,
+                height: 150,
+                borderRadius: 10,
+                border: "1px solid rgba(0,255,255,0.25)",
+                background: "rgba(0,0,0,0.75)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+              }}
+            >
+              <Image
+                src={activeNode.image || "/placeholders/npc-placeholder.png"}
+                alt={activeNode.npc || "NPC"}
+                priority
+                width={150}
+                height={150}
+                style={{
+                  objectFit: "cover",
+                  width: "100%",
+                  height: "100%",
+                  backgroundColor: "black",
+                  imageRendering: "pixelated",
+                }}
+              />
+            </div>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>{activeNode.npc}</span>
           </div>
         </div>
 

@@ -30,6 +30,7 @@ export default function AptBedroom() {
       title: "The Cat",
       body:
         "A gray cat lies curled in the stripes of light, blinking at you like it's watched this moment before.",
+      image: "/sprites/cat-1.jpg",
     });
   };
 

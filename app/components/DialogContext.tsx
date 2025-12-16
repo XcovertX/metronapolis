@@ -39,6 +39,7 @@ export type DialogNode = {
 
   conditionId?: ConditionId;
   responses: DialogResponse[];
+  image?: string;
 };
 
 type DialogContextValue = {

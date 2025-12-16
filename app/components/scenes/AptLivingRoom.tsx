@@ -48,21 +48,28 @@ export default function AptLivingroom() {
       kind: "move",
       dir: "w",
       label: "Step into the bedroom.",
-      onSelect: goLiving,
+      onSelect: () => goToScene("apt-bedroom"),
     },
     {
       id: "living-to-bathroom",
       kind: "move",
       dir: "n",
       label: "Step into the bathroom.",
-      onSelect: goLiving,
+      onSelect: () => goToScene("apt-bathroom"),
     },
     {
       id: "living-to-kitchen",
       kind: "move",
       dir: "e",
       label: "Step into the kitchen.",
-      onSelect: goLiving,
+      onSelect: () => goToScene("apt-kitchen"),
+    },
+    {
+      id: "living-to-hallway",
+      kind: "move",
+      dir: "s",
+      label: "Step into the hallway.",
+      onSelect: () => goToScene("apt-hallway"),
     },
   ];
 

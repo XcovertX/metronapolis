@@ -2,6 +2,7 @@
 "use client";
 
 import { useExamine } from "./ExamineContext";
+import Image from "next/image";
 
 export default function ExamineWindow() {
   const { active, closeExamine } = useExamine();
@@ -44,6 +45,19 @@ export default function ExamineWindow() {
         >
           LOOK CLOSER
         </div>
+        <Image
+          src={active.image || "/placeholders/item-placeholder.png"}
+          alt={active.title}
+          priority
+
+          width={256}
+          height={256}
+          style={{
+            objectFit: "contain",
+            backgroundColor: "black",
+            imageRendering: "pixelated",
+          }}
+        />
         <h3
           style={{
             margin: 0,
@@ -53,6 +67,7 @@ export default function ExamineWindow() {
         >
           {active.title}
         </h3>
+        
         <p
           style={{
             margin: 0,

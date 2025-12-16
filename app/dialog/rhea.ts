@@ -22,6 +22,7 @@ export const rheaDialogNodes: Record<string, DialogNode> = {
         timeCost: 1,
       },
     ],
+    image: "/sprites/rhea-portrait.jpg",
   },
 
   "rhea.intro.2": {
@@ -34,6 +35,7 @@ export const rheaDialogNodes: Record<string, DialogNode> = {
         timeCost: 1,
       },
     ],
+    image: "/sprites/rhea-portrait.jpg",
   },
 
   "rhea.intro.3": {
@@ -51,6 +53,7 @@ export const rheaDialogNodes: Record<string, DialogNode> = {
         timeCost: 2,
       },
     ],
+    image: "/sprites/rhea-portrait.jpg",
   },
 
   "rhea.intro.4": {
@@ -63,5 +66,6 @@ export const rheaDialogNodes: Record<string, DialogNode> = {
         timeCost: 1,
       },
     ],
+    image: "/sprites/rhea-portrait.jpg",
   },
 };

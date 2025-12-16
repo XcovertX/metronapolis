@@ -12,6 +12,7 @@ export type ExaminePayload = {
   id?: string;
   title: string;
   body: string;
+  image?: string;
 };
 
 type ExamineContextValue = {
