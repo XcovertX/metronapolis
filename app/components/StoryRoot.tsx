@@ -22,11 +22,13 @@ import StreetAlley from "./scenes/StreetAlley";
 import GraphScene from "./scenes/GraphScene";
 import SceneMessageOverlay from "./SceneMessageOverlay";
 import CasperWalker from "./CasperWalker";
+import AptLivingroom from "./scenes/AptLivingRoom";
 
 const AUTHORED_SCENES: Partial<Record<SceneId, React.FC>> = {
   "apt-bedroom": AptBedroom,
   "street-front": StreetFront,
   "street-alley": StreetAlley,
+  "apt-living": AptLivingroom,
   // "apt-living": AptLiving,
   // "lobby": Lobby,
 };

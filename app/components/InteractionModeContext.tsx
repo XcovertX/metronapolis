@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-export type InteractionMode = null | "examine" | "talk" | "take";
+export type InteractionMode = null | "walk" | "examine" | "talk" | "take";
 
 type InteractionModeCtx = {
   mode: InteractionMode;
@@ -43,8 +43,9 @@ export function InteractionModeProvider({ children }: { children: React.ReactNod
   useEffect(() => {
     const body = document.body;
     const prev = body.style.cursor;
-
-    if (mode === "examine") body.style.cursor = "zoom-in";
+    
+    if (mode === "walk") body.style.cursor = "crosshair";
+    else if (mode === "examine") body.style.cursor = "zoom-in";
     else if (mode === "talk") body.style.cursor = "cell"; // placeholder “speech” vibe
     else if (mode === "take") body.style.cursor = "grab";
     else body.style.cursor = "";

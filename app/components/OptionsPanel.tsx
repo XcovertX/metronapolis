@@ -302,7 +302,6 @@ export default function OptionsWindow() {
           <HudPanel title="ACTIONS" subtitle="INTERACT" style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", flexDirection: "row", gap: 8 }} >
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-
             <IconButton active={mode === "walk"} label="Walk mode" onClick={() => toggle("walk")}>
               <BootIcon />
             </IconButton>
