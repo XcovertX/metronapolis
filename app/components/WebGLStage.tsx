@@ -1,17 +1,15 @@
 // app/components/WebGLStage.tsx
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import * as PIXI from "pixi.js";
-import "pixi.js/advanced-blend-modes";
-
-
+import { Filter, GlProgram } from "pixi.js";
 
 type Lamp = {
   id: string;
-  x: number;
-  y: number;
-  radius?: number;
+  x: number; // world px (background pixel space)
+  y: number; // world px
+  radius?: number; // world px
   intensity?: number; // 0..1
 };
 
@@ -19,8 +17,14 @@ type WebGLStageProps = {
   /** public/ path like "/rooms/apt-bedroom.png" */
   backgroundSrc: string;
 
+  /** public/ path like "/rooms/apt-bedroom_n.png" (normal map, same size as background) */
+  backgroundNormalSrc: string;
+
   /** public/ path like "/sprites/casper.png" */
   playerSrc: string;
+
+  /** public/ path like "/sprites/casper_n.png" (normal map, same size as player) */
+  playerNormalSrc: string;
 
   /** world coords (pixels in your background image space) */
   playerX: number;
@@ -32,50 +36,138 @@ type WebGLStageProps = {
   /** lamps in the scene (world coords) */
   lamps?: Lamp[];
 
-  /** set to true if you want a subtle CRT scanline overlay in WebGL */
+  /** adds a subtle CRT overlay in WebGL */
   crt?: boolean;
 
   className?: string;
 };
 
-function makeRadialLightTexture(size = 256) {
-  // Canvas radial gradient → Pixi texture
-  const c = document.createElement("canvas");
-  c.width = size;
-  c.height = size;
-  const ctx = c.getContext("2d");
-  if (!ctx) throw new Error("2D context missing");
+function buildNormalLightFilter(params: {
+  normalTexture: PIXI.Texture;
+  texWidth: number;
+  texHeight: number;
+  ambient?: number;
+}) {
+  const vertex = `
+    in vec2 aPosition;
+    out vec2 vTextureCoord;
 
-  const r = size / 2;
-  const g = ctx.createRadialGradient(r, r, 0, r, r, r);
-  g.addColorStop(0.0, "rgba(255,255,255,0.95)");
-  g.addColorStop(0.25, "rgba(255,255,255,0.55)");
-  g.addColorStop(0.6, "rgba(255,255,255,0.18)");
-  g.addColorStop(1.0, "rgba(255,255,255,0.0)");
+    uniform vec4 uInputSize;
+    uniform vec4 uOutputFrame;
+    uniform vec4 uOutputTexture;
 
-  ctx.clearRect(0, 0, size, size);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, size, size);
+    void main(void) {
+      gl_Position = vec4(aPosition * 2.0 - 1.0, 0.0, 1.0);
+      vTextureCoord = aPosition;
+    }
+  `;
 
-  return PIXI.Texture.from(c);
+  // One-light normal map shading + radial attenuation.
+  // Light is specified in *texture pixel space* (not UV).
+  const fragment = `
+    precision highp float;
+
+    in vec2 vTextureCoord;
+
+    uniform sampler2D uTexture;
+    uniform sampler2D uNormal;
+
+    uniform vec2  uTexSize;        // (w,h) in pixels
+    uniform vec2  uLightPosPx;     // (x,y) in pixels
+    uniform float uLightRadiusPx;  // radius in pixels
+    uniform float uLightIntensity; // 0..1-ish
+    uniform float uAmbient;        // 0..1
+
+    void main(void) {
+      vec4 base = texture(uTexture, vTextureCoord);
+
+      // If sprite is fully transparent, keep it cheap.
+      if (base.a <= 0.0) {
+        gl_FragColor = base;
+        return;
+      }
+
+      // normal map: RGB in [0..1] -> [-1..1]
+      vec3 n = texture(uNormal, vTextureCoord).rgb * 2.0 - 1.0;
+      n = normalize(n);
+
+      vec2 fragPx = vTextureCoord * uTexSize;
+      vec2 d = uLightPosPx - fragPx;
+      float dist = length(d);
+
+      // attenuation: 1 at center -> 0 at radius
+      float att = 1.0 - smoothstep(0.0, uLightRadiusPx, dist);
+
+      // Light direction: treat the normal map as a surface facing the camera
+      // Use z-bias so it still lights when the lamp is near.
+      vec3 L = normalize(vec3(d / max(uLightRadiusPx, 1.0), 0.9));
+
+      float diff = max(dot(n, L), 0.0);
+
+      float light = clamp(uAmbient + diff * att * uLightIntensity, 0.0, 2.0);
+
+      vec3 lit = base.rgb * light;
+      gl_FragColor = vec4(lit, base.a);
+    }
+  `;
+
+  const filter = new Filter({
+    glProgram: new GlProgram({ vertex, fragment }),
+    resources: {
+      // Uniform buffer name can be anything; Pixi exposes it under filter.resources.<name>.uniforms
+      lightUniforms: {
+        uTexSize: { value: [params.texWidth, params.texHeight], type: "vec2<f32>" },
+        uLightPosPx: { value: [0, 0], type: "vec2<f32>" },
+        uLightRadiusPx: { value: 220, type: "f32" },
+        uLightIntensity: { value: 0.6, type: "f32" },
+        uAmbient: { value: params.ambient ?? 0.35, type: "f32" },
+      },
+      // Texture resource for the normal map
+      uNormal: params.normalTexture,
+    },
+  });
+
+  return filter;
+}
+
+function setNearest(tex: PIXI.Texture) {
+  // Pixi v8: texture.source is the underlying source (Image/Canvas/etc)
+  // scaleMode lives there.
+  // (Some typings allow string; others use enum. This works in v8 runtime.)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const src: any = (tex as any).source;
+  if (src) src.scaleMode = "nearest";
 }
 
 export default function WebGLStage({
   backgroundSrc,
+  backgroundNormalSrc,
   playerSrc,
+  playerNormalSrc,
   playerX,
   playerY,
   scale = 3,
-  lamps = [{ id: "lamp-1", x: 420, y: 170, radius: 240, intensity: 0.55 }],
+  lamps = [{ id: "lamp-1", x: 420, y: 170, radius: 240, intensity: 0.65 }],
   crt = false,
   className,
 }: WebGLStageProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
 
-  // Keep refs for fast updates without re-creating app
   const appRef = useRef<PIXI.Application | null>(null);
+
+  const worldRef = useRef<PIXI.Container | null>(null);
+
+  const bgRef = useRef<PIXI.Sprite | null>(null);
   const playerRef = useRef<PIXI.Sprite | null>(null);
-  const playerLightRef = useRef<PIXI.Sprite | null>(null);
+
+  const bgFilterRef = useRef<PIXI.Filter | null>(null);
+  const playerFilterRef = useRef<PIXI.Filter | null>(null);
+
+  // Keep latest lamps in a ref so ticker doesn’t depend on JSON.stringify
+  const lampsRef = useRef<Lamp[]>(lamps);
+  useEffect(() => {
+    lampsRef.current = lamps;
+  }, [lamps]);
 
   useEffect(() => {
     let destroyed = false;
@@ -83,7 +175,7 @@ export default function WebGLStage({
     async function boot() {
       if (!hostRef.current) return;
 
-      // Create app
+      // Create app (Pixi v8 init)
       const app = new PIXI.Application();
       await app.init({
         resizeTo: hostRef.current,
@@ -101,26 +193,36 @@ export default function WebGLStage({
       appRef.current = app;
       hostRef.current.appendChild(app.canvas);
 
-      // Root container scales “world pixels” up to screen pixels
+      // World container scales “world pixels” up to screen pixels
       const world = new PIXI.Container();
       world.scale.set(scale);
       app.stage.addChild(world);
+      worldRef.current = world;
 
       // Load textures
-      const bgTex = await PIXI.Assets.load(backgroundSrc);
-      const plTex = await PIXI.Assets.load(playerSrc);
+      const [bgTex, bgNTex, plTex, plNTex] = await Promise.all([
+        PIXI.Assets.load(backgroundSrc),
+        PIXI.Assets.load(backgroundNormalSrc),
+        PIXI.Assets.load(playerSrc),
+        PIXI.Assets.load(playerNormalSrc),
+      ]);
+
+      if (destroyed) return;
 
       // Pixel-perfect sampling
-      bgTex.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST;
-      plTex.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST;
+      setNearest(bgTex);
+      setNearest(bgNTex);
+      setNearest(plTex);
+      setNearest(plNTex);
 
-      // Background
+      // Background sprite
       const bg = new PIXI.Sprite(bgTex);
       bg.x = 0;
       bg.y = 0;
       world.addChild(bg);
+      bgRef.current = bg;
 
-      // Player
+      // Player sprite
       const player = new PIXI.Sprite(plTex);
       player.anchor.set(0.5, 1.0); // feet at (x,y)
       player.x = playerX;
@@ -128,73 +230,88 @@ export default function WebGLStage({
       world.addChild(player);
       playerRef.current = player;
 
-      // --- LIGHTING LAYER (simple, effective) ---
-      // We’ll draw lights as additive sprites above the scene.
-      // Later you can upgrade this to a real shader/normal-map pipeline.
+      // Create lighting filters (one per sprite, each with its own normal map)
+      const bgFilter = buildNormalLightFilter({
+        normalTexture: bgNTex,
+        texWidth: bgTex.width,
+        texHeight: bgTex.height,
+        ambient: 0.28,
+      });
+      bg.filters = [bgFilter];
+      bgFilterRef.current = bgFilter;
 
-      const lightLayer = new PIXI.Container();
-      // additive blend for “glow”
-      lightLayer.blendMode = "screen";
+      const playerFilter = buildNormalLightFilter({
+        normalTexture: plNTex,
+        texWidth: plTex.width,
+        texHeight: plTex.height,
+        ambient: 0.35,
+      });
+      player.filters = [playerFilter];
+      playerFilterRef.current = playerFilter;
 
-      world.addChild(lightLayer);
-
-      const lightTex = makeRadialLightTexture(256);
-
-      // Static lamps
-      for (const l of lamps) {
-        const s = new PIXI.Sprite(lightTex);
-        s.anchor.set(0.5);
-        s.x = l.x;
-        s.y = l.y;
-        const r = l.radius ?? 220;
-        s.width = r;
-        s.height = r;
-        s.alpha = l.intensity ?? 0.5;
-        s.blendMode = "screen";
-        lightLayer.addChild(s);
-      }
-
-      // Player-follow light
-      const playerLight = new PIXI.Sprite(lightTex);
-      playerLight.anchor.set(0.5);
-      playerLight.width = 210;
-      playerLight.height = 210;
-      playerLight.alpha = 0.35;
-      playerLight.blendMode = "screen";
-      lightLayer.addChild(playerLight);
-      playerLightRef.current = playerLight;
-
-      // Optional CRT scanlines inside WebGL (you already have HUD scanlines too)
+      // Optional CRT overlay in WebGL (very lightweight)
+      let crtGfx: PIXI.Graphics | null = null;
       if (crt) {
-        const scan = new PIXI.Graphics();
-        scan.alpha = 0.12;
-        scan.blendMode = "overlay";
-
-        // draw in screen space (not world), so add to app.stage not world
-        app.stage.addChild(scan);
-
-        app.ticker.add(() => {
-          if (!hostRef.current) return;
-          const w = app.screen.width;
-          const h = app.screen.height;
-          scan.clear();
-          // horizontal scanlines
-          for (let y = 0; y < h; y += 3) {
-            scan.rect(0, y, w, 1);
-          }
-          scan.fill({ color: 0xffffff, alpha: 0.15 });
-        });
+        crtGfx = new PIXI.Graphics();
+        crtGfx.alpha = 0.10;
+        app.stage.addChild(crtGfx);
       }
 
-      // Update loop
+      // Ticker: update light position each frame (pick closest lamp to the player)
       app.ticker.add(() => {
         const p = playerRef.current;
-        const pl = playerLightRef.current;
-        if (!p || !pl) return;
+        const bgF = bgFilterRef.current as any;
+        const plF = playerFilterRef.current as any;
+        if (!p || !bgF || !plF) return;
 
-        // keep player light slightly above feet
-        pl.x = p.x;
-        pl.y = p.y - 22;
+        const ls = lampsRef.current ?? [];
+
+        // Choose a “main” lamp: nearest to player (or fallback to first)
+        let lamp = ls[0];
+        if (lamp && ls.length > 1) {
+          let best = Infinity;
+          for (const l of ls) {
+            const dx = (l.x ?? 0) - p.x;
+            const dy = (l.y ?? 0) - (p.y - 18);
+            const d2 = dx * dx + dy * dy;
+            if (d2 < best) {
+              best = d2;
+              lamp = l;
+            }
+          }
+        }
+
+        // Convert world px -> texture px.
+        // Background is at (0,0) in world so mapping is direct.
+        const lightX = lamp?.x ?? p.x;
+        const lightY = lamp?.y ?? (p.y - 18);
+        const radius = lamp?.radius ?? 240;
+        const intensity = lamp?.intensity ?? 0.65;
+
+        // Background light
+        bgF.resources.lightUniforms.uniforms.uLightPosPx = [lightX, lightY];
+        bgF.resources.lightUniforms.uniforms.uLightRadiusPx = radius;
+        bgF.resources.lightUniforms.uniforms.uLightIntensity = intensity;
+
+        // Player light: make it feel like the lamp is affecting the character too.
+        // Map lamp to player texture space by projecting relative vector onto sprite pixels.
+        // Simple approximation: use player-local px, centered at player anchor.
+        const plLocalX = (lightX - (p.x - plF.resources.lightUniforms.uniforms.uTexSize[0] * 0.5));
+        const plLocalY = (lightY - (p.y - plF.resources.lightUniforms.uniforms.uTexSize[1]));
+        plF.resources.lightUniforms.uniforms.uLightPosPx = [plLocalX, plLocalY];
+        plF.resources.lightUniforms.uniforms.uLightRadiusPx = Math.max(140, radius * 0.6);
+        plF.resources.lightUniforms.uniforms.uLightIntensity = Math.min(0.95, intensity + 0.1);
+
+        // CRT scanlines (screen-space)
+        if (crtGfx && appRef.current) {
+          const w = app.screen.width;
+          const h = app.screen.height;
+          crtGfx.clear();
+          for (let y = 0; y < h; y += 3) {
+            crtGfx.rect(0, y, w, 1);
+          }
+          crtGfx.fill({ color: 0xffffff, alpha: 0.12 });
+        }
       });
     }
 
@@ -202,21 +319,26 @@ export default function WebGLStage({
 
     return () => {
       destroyed = true;
+
       const app = appRef.current;
       appRef.current = null;
+      worldRef.current = null;
+
+      bgRef.current = null;
       playerRef.current = null;
-      playerLightRef.current = null;
+
+      bgFilterRef.current = null;
+      playerFilterRef.current = null;
 
       if (app) {
-        // remove canvas
         if (app.canvas?.parentNode) app.canvas.parentNode.removeChild(app.canvas);
         app.destroy(true);
       }
     };
-    // IMPORTANT: only boot once per background/player asset combo + scale
-  }, [backgroundSrc, playerSrc, scale, crt, JSON.stringify(lamps)]);
+    // Boot only when asset identities / scale / crt toggle changes.
+  }, [backgroundSrc, backgroundNormalSrc, playerSrc, playerNormalSrc, scale, crt]);
 
-  // Update player position without re-creating the app
+  // Update player position without re-creating the Pixi app
   useEffect(() => {
     const p = playerRef.current;
     if (!p) return;
@@ -232,7 +354,6 @@ export default function WebGLStage({
         position: "absolute",
         inset: 0,
         overflow: "hidden",
-        // makes canvas fill
       }}
     />
   );

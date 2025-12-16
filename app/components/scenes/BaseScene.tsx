@@ -26,6 +26,8 @@ export default function BaseScene({
     return () => clearOptions();
   }, [options, setOptions, clearOptions]);
 
+  const useWebGL = !!background;
+
   return (
     <section
       style={{
