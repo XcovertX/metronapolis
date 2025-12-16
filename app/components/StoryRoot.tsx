@@ -12,6 +12,7 @@ import DebugOverlay from "./DebugOverlay";
 
 // Authored scenes
 import AptBedroom from "./scenes/AptBedroom";
+import StreetFront from "./scenes/StreetFront";
 // import AptLiving from "./scenes/AptLiving";
 // import Lobby from "./scenes/Lobby";
 // etc — add these as you flesh them out
@@ -22,6 +23,7 @@ import SceneMessageOverlay from "./SceneMessageOverlay";
 
 const AUTHORED_SCENES: Partial<Record<SceneId, React.FC>> = {
   "apt-bedroom": AptBedroom,
+  "street-front": StreetFront,
   // "apt-living": AptLiving,
   // "lobby": Lobby,
 };

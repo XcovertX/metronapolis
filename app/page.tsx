@@ -9,6 +9,7 @@ import { OptionsProvider } from "./components/OptionsContext";
 import StoryRoot from "./components/StoryRoot";
 import { dialogNodes } from "./game/events"; // ✅ use merged event nodes
 import { ExamineModeProvider } from "./components/ExamineModeContext";
+import { InteractionModeProvider } from "./components/InteractionModeContext";
 
 export default function Page() {
   return (
@@ -16,9 +17,11 @@ export default function Page() {
       <ExamineModeProvider>
         <DialogProvider nodes={dialogNodes}>
           <ExamineProvider>
-            <OptionsProvider>
-              <StoryRoot />
-            </OptionsProvider>
+            <InteractionModeProvider>
+              <OptionsProvider>
+                <StoryRoot />
+              </OptionsProvider>
+            </InteractionModeProvider>
           </ExamineProvider>
         </DialogProvider>
       </ExamineModeProvider>

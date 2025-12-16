@@ -47,8 +47,8 @@ export default function DebugOverlay() {
           style={{
             position: "fixed",
             top: 36,
-            left: 12,
-            zIndex: 49,
+            right: 12,
+            zIndex: 100,
             width: 260,
             maxHeight: 220,
             padding: "8px 10px",

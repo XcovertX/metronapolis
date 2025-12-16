@@ -42,7 +42,8 @@ export default function BaseScene({
           fill
           priority
           style={{
-            objectFit: "cover",
+            objectFit: "contain",
+            backgroundColor: "black",
             imageRendering: "pixelated",
           }}
         />
@@ -51,11 +52,9 @@ export default function BaseScene({
       <div
         style={{
           position: "absolute",
-          bottom: "18%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "90%",
-          maxWidth: 600,
+          top: 24,
+          right: 24,
+          width: 340,
           background: "rgba(0,0,0,0.55)",
           padding: "1rem 1.25rem",
           borderRadius: 8,
@@ -63,11 +62,12 @@ export default function BaseScene({
           backdropFilter: "blur(3px)",
           color: "#f5f5f5",
           fontFamily: "system-ui, sans-serif",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
         }}
       >
-        <h1 style={{ marginTop: 0 }}>{title}</h1>
+        <h1 style={{ marginTop: 0, fontSize: 20 }}>{title}</h1>
         {description.map((p, i) => (
-          <p key={i}>{p}</p>
+          <p key={i} style={{ margin: 0, marginTop: 8, fontSize: 15 }}>{p}</p>
         ))}
       </div>
     </section>
