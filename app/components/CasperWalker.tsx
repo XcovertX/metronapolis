@@ -1,3 +1,4 @@
+// app/components/CasperWalker.tsx
 "use client";
 
 import * as THREE from "three";
@@ -32,21 +33,37 @@ type WalkCollisionData = {
 type CasperWalkerProps = {
   sheetSrc?: string;
   normalSrc?: string;
-  containerStart?: Point; // screen px (top-left origin)
+
+  /**
+   * ✅ This is now your *design-space* start, in px of the reference scene size.
+   * (Top-left origin, like your editor.)
+   */
+  containerStart?: Point;
+
+  /**
+   * ✅ Design/reference size (the pixel size your navmesh + lighting were authored in).
+   * If omitted, defaults to 1920x1080.
+   *
+   * Tip: set this to your background image size / editor canvas size.
+   */
   containerDimensions?: { width: number; height: number };
+
   speedPxPerSec?: number;
   walkFps?: number;
   frameCount?: number;
   frameW?: number;
   frameH?: number;
   standingFrameIndex?: number;
-  landingSpot?: Point; // screen px whare Casper starts
-  
+
+  /**
+   * ✅ Design-space landing spot (same coordinate system as editor)
+   */
+  landingSpot?: Point;
 
   /** Legacy single lamp (optional fallback) */
   lamp?: Lamp;
 
-  /** ✅ Scene lighting authored by your LightingEditor (screen px, top-left origin) */
+  /** ✅ Scene lighting authored by your LightingEditor (design px, top-left origin) */
   lightingData?: LightingData;
 
   /** Optional override navmesh (otherwise uses imported JSON) */
@@ -60,8 +77,12 @@ function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n));
 }
 
-function screenPxToWorldPx(sx: number, sy: number, w: number, h: number) {
-  return { x: sx - w / 2, y: h / 2 - sy };
+/**
+ * ✅ Convert DESIGN screen px (top-left) -> WORLD px (center origin)
+ * using the fixed design/reference dimensions, NOT the live canvas size.
+ */
+function designPxToWorldPx(sx: number, sy: number, designW: number, designH: number) {
+  return { x: sx - designW / 2, y: designH / 2 - sy };
 }
 
 /** point-in-polygon (ray cast) */
@@ -173,7 +194,6 @@ function SpotLightWithTarget({
     if (!spotRef.current) return;
     spotRef.current.target = targetObj;
     return () => {
-      // detach on unmount
       if (spotRef.current) spotRef.current.target = new THREE.Object3D();
     };
   }, [targetObj]);
@@ -246,7 +266,6 @@ function SceneLighting({
           );
         }
 
-        // point light
         return (
           <React.Fragment key={l.id}>
             <pointLight
@@ -303,7 +322,6 @@ function CasperSprite({
   const [diffuse, normal] = useTexture([sheetSrc, normalSrc]);
 
   useMemo(() => {
-  
     diffuse.magFilter = THREE.NearestFilter;
     diffuse.minFilter = THREE.NearestFilter;
     diffuse.generateMipmaps = false;
@@ -325,6 +343,7 @@ function CasperSprite({
   const { camera, size } = useThree();
   const ortho = camera as THREE.OrthographicCamera;
 
+  // ✅ Click -> world uses the camera; world units are now DESIGN-locked via camera frustum + zoom.
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (e.button !== 0) return;
@@ -335,7 +354,6 @@ function CasperSprite({
       const w = new THREE.Vector3(xNdc, yNdc, 0).unproject(ortho);
       const dest = { x: w.x, y: w.y };
 
-      // refuse targets not walkable
       if (!isWalkable(dest, navWorld)) return;
 
       setTarget(dest);
@@ -348,13 +366,10 @@ function CasperSprite({
 
   useEffect(() => {
     if (!landingWorld) return;
-
-    // clear movement + snap to landing
     setTarget(null);
     setPos(landingWorld);
     setFrame(standingFrameIndex);
 
-    // also update mesh immediately (helps avoid a 1-frame visual lag)
     if (meshRef.current) {
       meshRef.current.position.set(landingWorld.x, landingWorld.y, 0);
     }
@@ -449,7 +464,11 @@ export default function CasperWalker(props: CasperWalkerProps) {
   const sheetSrc = props.sheetSrc ?? "/sprites/casper-walk.png";
   const normalSrc = props.normalSrc ?? "/sprites/casper-walk_n.png";
 
-  const lampInScreen: Lamp = props.lamp ?? {
+  // ✅ DESIGN SIZE (reference space)
+  const designW = props.containerDimensions?.width ?? 1920;
+  const designH = props.containerDimensions?.height ?? 1080;
+
+  const lampInDesign: Lamp = props.lamp ?? {
     x: 520,
     y: 260,
     z: 260,
@@ -464,15 +483,17 @@ export default function CasperWalker(props: CasperWalkerProps) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 30, pointerEvents: "none" }}>
       <Canvas orthographic gl={{ antialias: false, alpha: true }}>
-        <OrthoPixelCamera />
+        <OrthoDesignCamera designW={designW} designH={designH} />
         <Scene
           sheetSrc={sheetSrc}
           normalSrc={normalSrc}
-          startScreen={props.containerStart ?? { x: 1280, y: 520 }}
-          landingSpot={props.landingSpot}
-          lampScreen={lampInScreen}
-          navmeshScreen={navmesh}
-          lightingScreen={props.lightingData}
+          designW={designW}
+          designH={designH}
+          startDesign={props.containerStart ?? { x: 1280, y: 520 }}
+          landingDesign={props.landingSpot}
+          lampDesign={lampInDesign}
+          navmeshDesign={navmesh}
+          lightingDesign={props.lightingData}
           showLightMarkers={props.showLightMarkers ?? false}
           speedPxPerSec={props.speedPxPerSec ?? 260}
           walkFps={props.walkFps ?? 12}
@@ -486,45 +507,16 @@ export default function CasperWalker(props: CasperWalkerProps) {
   );
 }
 
-function getContainRect(containerW: number, containerH: number, imgW: number, imgH: number) {
-  const scale = Math.min(containerW / imgW, containerH / imgH);
-  const drawW = imgW * scale;
-  const drawH = imgH * scale;
-  const offX = (containerW - drawW) / 2;
-  const offY = (containerH - drawH) / 2;
-  return { offX, offY, drawW, drawH, scale };
-}
-
-// screen px -> scene px (image space)
-function screenToScene(
-  sx: number, sy: number,
-  rect: { offX: number; offY: number; scale: number }
-) {
-  return {
-    x: (sx - rect.offX) / rect.scale,
-    y: (sy - rect.offY) / rect.scale,
-  };
-}
-
-// scene px -> screen px
-function sceneToScreen(
-  x: number, y: number,
-  rect: { offX: number; offY: number; scale: number }
-) {
-  return {
-    x: rect.offX + x * rect.scale,
-    y: rect.offY + y * rect.scale,
-  };
-}
-
 function Scene({
   sheetSrc,
   normalSrc,
-  startScreen,
-  landingSpot,
-  lampScreen,
-  navmeshScreen,
-  lightingScreen,
+  designW,
+  designH,
+  startDesign,
+  landingDesign,
+  lampDesign,
+  navmeshDesign,
+  lightingDesign,
   showLightMarkers,
   speedPxPerSec,
   walkFps,
@@ -535,11 +527,13 @@ function Scene({
 }: {
   sheetSrc: string;
   normalSrc: string;
-  startScreen: Point;
-  landingSpot?: Point;
-  lampScreen: Lamp;
-  navmeshScreen: WalkCollisionData;
-  lightingScreen?: LightingData;
+  designW: number;
+  designH: number;
+  startDesign: Point;
+  landingDesign?: Point;
+  lampDesign: Lamp;
+  navmeshDesign: WalkCollisionData;
+  lightingDesign?: LightingData;
   showLightMarkers: boolean;
   speedPxPerSec: number;
   walkFps: number;
@@ -548,60 +542,51 @@ function Scene({
   frameH: number;
   standingFrameIndex: number;
 }) {
-  const { size } = useThree();
-  
-
   const startWorld = useMemo(
-    () => screenPxToWorldPx(startScreen.x, startScreen.y, size.width, size.height),
-    [startScreen, size.width, size.height]
+    () => designPxToWorldPx(startDesign.x, startDesign.y, designW, designH),
+    [startDesign, designW, designH]
   );
 
   const lampWorld = useMemo(() => {
-    const p = screenPxToWorldPx(lampScreen.x, lampScreen.y, size.width, size.height);
-    return { ...lampScreen, x: p.x, y: p.y };
-  }, [lampScreen, size.width, size.height]);
+    const p = designPxToWorldPx(lampDesign.x, lampDesign.y, designW, designH);
+    return { ...lampDesign, x: p.x, y: p.y };
+  }, [lampDesign, designW, designH]);
 
   const landingWorld = useMemo(() => {
-    if (!landingSpot) return null;
-    return screenPxToWorldPx(landingSpot.x, landingSpot.y, size.width, size.height);
-  }, [landingSpot, size.width, size.height]);
+    if (!landingDesign) return null;
+    return designPxToWorldPx(landingDesign.x, landingDesign.y, designW, designH);
+  }, [landingDesign, designW, designH]);
 
   const navWorld = useMemo<WalkCollisionData>(() => {
     const convPoly = (poly: Polygon): Polygon => ({
       ...poly,
-      points: poly.points.map((pt) => screenPxToWorldPx(pt.x, pt.y, size.width, size.height)),
+      points: poly.points.map((pt) => designPxToWorldPx(pt.x, pt.y, designW, designH)),
     });
 
     return {
-      ...navmeshScreen,
-      walkables: navmeshScreen.walkables.map(convPoly),
-      colliders: navmeshScreen.colliders.map(convPoly),
-      collisionPoints: navmeshScreen.collisionPoints.map((cp) => ({
+      ...navmeshDesign,
+      walkables: navmeshDesign.walkables.map(convPoly),
+      colliders: navmeshDesign.colliders.map(convPoly),
+      collisionPoints: navmeshDesign.collisionPoints.map((cp) => ({
         ...cp,
-        p: screenPxToWorldPx(cp.p.x, cp.p.y, size.width, size.height),
+        p: designPxToWorldPx(cp.p.x, cp.p.y, designW, designH),
       })),
     };
-  }, [navmeshScreen, size.width, size.height]);
+  }, [navmeshDesign, designW, designH]);
 
-  // ✅ Convert lighting from screen px -> world px
   const lightingWorld = useMemo<LightingData | undefined>(() => {
-    if (!lightingScreen) return undefined;
+    if (!lightingDesign) return undefined;
 
     return {
-      ...lightingScreen,
-      rooms: lightingScreen.rooms.map((r) => ({
-        ...r,
-        // rooms are only for organization; keep in screen-space if you want
-        // but we’ll convert anyway in case you draw them as overlays later
-        x: screenPxToWorldPx(r.x, r.y, size.width, size.height).x,
-        y: screenPxToWorldPx(r.x, r.y, size.width, size.height).y,
-        w: r.w,
-        h: r.h,
-      })),
-      lights: lightingScreen.lights.map((l) => {
-        const p = screenPxToWorldPx(l.x, l.y, size.width, size.height);
+      ...lightingDesign,
+      rooms: lightingDesign.rooms.map((r) => {
+        const p = designPxToWorldPx(r.x, r.y, designW, designH);
+        return { ...r, x: p.x, y: p.y, w: r.w, h: r.h };
+      }),
+      lights: lightingDesign.lights.map((l) => {
+        const p = designPxToWorldPx(l.x, l.y, designW, designH);
         const tgt = l.target
-          ? screenPxToWorldPx(l.target.x, l.target.y, size.width, size.height)
+          ? designPxToWorldPx(l.target.x, l.target.y, designW, designH)
           : undefined;
 
         return {
@@ -612,11 +597,10 @@ function Scene({
         };
       }),
     };
-  }, [lightingScreen, size.width, size.height]);
+  }, [lightingDesign, designW, designH]);
 
   return (
     <>
-      {/* ✅ Prefer lightingData; fallback to your old single-lamp + ambient */}
       {lightingWorld ? (
         <SceneLighting lightingWorld={lightingWorld} showMarkers={showLightMarkers} />
       ) : (
@@ -643,19 +627,33 @@ function Scene({
   );
 }
 
-function OrthoPixelCamera() {
+/**
+ * ✅ The magic:
+ * - Fixed design frustum (designW/designH)
+ * - Zoom scales uniformly to "contain" inside the live canvas
+ * Result: world coordinates remain stable; only visual scale changes.
+ */
+function OrthoDesignCamera({ designW, designH }: { designW: number; designH: number }) {
   const { size } = useThree();
+
+  // contain scale: fit whole design space inside current canvas
+  const zoom = useMemo(() => {
+    const sx = size.width / designW;
+    const sy = size.height / designH;
+    return Math.min(sx, sy);
+  }, [size.width, size.height, designW, designH]);
+
   return (
     <OrthographicCamera
       makeDefault
       position={[0, 0, 1000]}
       near={-2000}
       far={2000}
-      left={-size.width / 2}
-      right={size.width / 2}
-      top={size.height / 2}
-      bottom={-size.height / 2}
-      zoom={1}
+      left={-designW / 2}
+      right={designW / 2}
+      top={designH / 2}
+      bottom={-designH / 2}
+      zoom={zoom}
     />
   );
 }
