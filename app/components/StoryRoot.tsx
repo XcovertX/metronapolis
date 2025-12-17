@@ -21,20 +21,13 @@ import StreetAlley from "./scenes/StreetAlley";
 // Generic fallback scene
 import GraphScene from "./scenes/GraphScene";
 import SceneMessageOverlay from "./SceneMessageOverlay";
-import CasperWalker from "./CasperWalker";
 import AptLivingroom from "./scenes/AptLivingRoom";
-// import WebGLStage from "./WebGLStage";
-import CasperWalkerThree from "./CasperWalkThree";
-import NavMeshEditor from "./NavMeshEditor";
-import LightingEditor from "./LightingEditor";
 
 const AUTHORED_SCENES: Partial<Record<SceneId, React.FC>> = {
   "apt-bedroom": AptBedroom,
   "street-front": StreetFront,
   "street-alley": StreetAlley,
   "apt-living": AptLivingroom,
-  // "apt-living": AptLiving,
-  // "lobby": Lobby,
 };
 
 export default function StoryRoot() {
@@ -57,7 +50,6 @@ export default function StoryRoot() {
 
       {/* Scene */}
       <SceneComponent />
-      <CasperWalkerThree />
 
       {/* UI layers */}
       <DialogWindow />
