@@ -1,5 +1,5 @@
 // app/dialog/malik.ts
-import { DialogNode } from "../components/DialogContext";
+import { DialogNode } from "../../components/DialogContext";
 
 export const malikDialogNodes: Record<string, DialogNode> = {
   "malik.intro.1": {

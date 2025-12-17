@@ -1,5 +1,5 @@
 // app/dialog/conditions.ts
-import type { DialogConditionContext } from "../components/DialogContext";
+import type { DialogConditionContext } from "../../components/DialogContext";
 
 // ✅ Check if the player has a specific inventory item
 export function hasItem(id: string) {

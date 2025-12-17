@@ -1,5 +1,5 @@
 // app/dialog/rhea.ts
-import { DialogNode } from "../components/DialogContext";
+import { DialogNode } from "../../components/DialogContext";
 
 export const rheaDialogNodes: Record<string, DialogNode> = {
   "rhea.intro.1": {

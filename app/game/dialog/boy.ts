@@ -1,5 +1,5 @@
 // app/dialog/boy.ts
-import { DialogNode } from "../components/DialogContext";
+import { DialogNode } from "../../components/DialogContext";
 import { hasItem, flagEquals } from "./conditions";
 
 export const boyDialogNodes: Record<string, DialogNode> = {

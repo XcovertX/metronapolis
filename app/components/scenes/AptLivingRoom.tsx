@@ -18,7 +18,7 @@ export default function AptLivingroom() {
     "apt-bathroom": [1000, 600],
     "apt-hallway": [1000, 1200],
   };
-  const [pointX, pointY] = sceneLandingSpots[lastScene] ?? [1000, 1000];
+
   console.log(lastScene);
 
   const catHere = getCatLocation(timeMinutes) === "apt-bedroom";
@@ -81,6 +81,11 @@ export default function AptLivingroom() {
       onSelect: () => goToScene("apt-hallway"),
     },
   ];
+
+  // Determine landing spot based on lastScene
+  const [pointX, pointY] = lastScene && sceneLandingSpots[lastScene]
+    ? sceneLandingSpots[lastScene]
+    : [373, 735]; // Default to center if lastScene is not found
 
   if (catHere) {
     options.push({
