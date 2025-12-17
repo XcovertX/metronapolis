@@ -113,9 +113,6 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
   const [lastEventAt, setLastEventAt] = useState<number>(() => Date.now());
   const [lastScene, setLastScene] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLastScene((prev) => (prev === scene ? prev : scene));
-  }, [scene]);
 
   // --- refs so time engine always sees latest state ---
   const sceneRef = useRef<SceneId>(scene);
@@ -199,6 +196,7 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
   );
 
   const goToScene = useCallback((id: SceneId) => {
+    setLastScene(sceneRef.current);
     sceneRef.current = id;
     setScene(id);
   }, []);

@@ -11,6 +11,15 @@ import type { PlayerOption } from "../OptionsContext";
 export default function AptLivingroom() {
   const { advanceTime, goToScene, timeMinutes, flags, setFlags } = useLoopState();
   const { openExamine } = useExamine();
+  const { lastScene } = useLoopState();
+  const sceneLandingSpots: Record<string, [number, number]> = {
+    "apt-bedroom": [700, 700],
+    "apt-kitchen": [1200, 900],
+    "apt-bathroom": [1000, 600],
+    "apt-hallway": [1000, 1200],
+  };
+  const [pointX, pointY] = sceneLandingSpots[lastScene] ?? [1000, 1000];
+  console.log(lastScene);
 
   const catHere = getCatLocation(timeMinutes) === "apt-bedroom";
   const showWakeText = !flags.hasWokenUp;
@@ -88,6 +97,7 @@ export default function AptLivingroom() {
       title="Apartment – Living Room"
       background="/rooms/apt-livingroom.jpg"
       dimensions={{ width: 746 , height: 1470 }}
+      landingSpot={{ x: pointX, y: pointY }}
       description={description}
       options={options}
     />
