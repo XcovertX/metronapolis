@@ -1,3 +1,4 @@
+// app/components/NavMeshEditor.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -37,6 +38,19 @@ type Props = {
 
   /** snap grid (px). set to 0 to disable */
   snapPx?: number;
+
+  /**
+   * ✅ REQUIRED for correct mapping when the viewport letterboxes/contains.
+   * Must match the same authored size you use in CasperWalker (containerDimensions).
+   * Example: { width: 1920, height: 1080 }
+   */
+  designSize?: { width: number; height: number };
+
+  /**
+   * ✅ If true, clicks/drags outside the contained design rect are ignored.
+   * Recommended.
+   */
+  clampToDesign?: boolean;
 };
 
 const DEFAULT: WalkCollisionData = {
@@ -76,9 +90,28 @@ function pointInPoly(pt: Pt, poly: Pt[]) {
     const intersect =
       yi > pt.y !== yj > pt.y &&
       pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi + 1e-12) + xi;
+
     if (intersect) inside = !inside;
   }
   return inside;
+}
+
+/** ✅ Contain-rect helpers (match OrthoDesignCamera "contain" behavior) */
+function getContainRect(containerW: number, containerH: number, designW: number, designH: number) {
+  const scale = Math.min(containerW / designW, containerH / designH);
+  const drawW = designW * scale;
+  const drawH = designH * scale;
+  const offX = (containerW - drawW) / 2;
+  const offY = (containerH - drawH) / 2;
+  return { offX, offY, scale, drawW, drawH };
+}
+
+function screenToDesign(
+  sx: number,
+  sy: number,
+  rect: { offX: number; offY: number; scale: number }
+): Pt {
+  return { x: (sx - rect.offX) / rect.scale, y: (sy - rect.offY) / rect.scale };
 }
 
 type Selection =
@@ -92,7 +125,12 @@ export default function NavMeshEditor({
   onChange,
   startHidden = false,
   snapPx = 8,
+  designSize = { width: 1920, height: 1080 },
+  clampToDesign = true,
 }: Props) {
+  const DESIGN_W = designSize.width;
+  const DESIGN_H = designSize.height;
+
   const [data, setData] = useState<WalkCollisionData>(initial ?? DEFAULT);
 
   const [showOverlay, setShowOverlay] = useState(!startHidden);
@@ -110,7 +148,6 @@ export default function NavMeshEditor({
         kind: "walkable" | "collider";
         polyId: string;
         vertexIndex: number;
-        offset: Pt;
       }
     | {
         kind: "point";
@@ -121,18 +158,27 @@ export default function NavMeshEditor({
 
   const overlayRef = useRef<HTMLDivElement | null>(null);
 
+  // Track viewport size for contain-rect
+  const [vp, setVp] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const onResize = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const rect = useMemo(
+    () => getContainRect(vp.w, vp.h, DESIGN_W, DESIGN_H),
+    [vp.w, vp.h, DESIGN_W, DESIGN_H]
+  );
+
   // Notify external
   useEffect(() => {
     onChange?.(data);
   }, [data, onChange]);
 
   // Helpers to update data immutably
-  const updatePolyVertex = (
-    kind: "walkables" | "colliders",
-    polyId: string,
-    vi: number,
-    p: Pt
-  ) => {
+  const updatePolyVertex = (kind: "walkables" | "colliders", polyId: string, vi: number, p: Pt) => {
     setData((d) => {
       const arr = d[kind].map((poly) => {
         if (poly.id !== polyId) return poly;
@@ -146,9 +192,7 @@ export default function NavMeshEditor({
   const updatePoint = (pointId: string, p: Pt) => {
     setData((d) => ({
       ...d,
-      collisionPoints: d.collisionPoints.map((cp) =>
-        cp.id === pointId ? { ...cp, p } : cp
-      ),
+      collisionPoints: d.collisionPoints.map((cp) => (cp.id === pointId ? { ...cp, p } : cp)),
     }));
   };
 
@@ -161,25 +205,29 @@ export default function NavMeshEditor({
         return { ...d, colliders: d.colliders.filter((p) => p.id !== sel.polyId) };
       }
       if (sel.kind === "point") {
-        return {
-          ...d,
-          collisionPoints: d.collisionPoints.filter((p) => p.id !== sel.pointId),
-        };
+        return { ...d, collisionPoints: d.collisionPoints.filter((p) => p.id !== sel.pointId) };
       }
       return d;
     });
     setSel({ kind: "none" });
   };
 
-  // Screen -> overlay local
-  const getLocal = (e: React.PointerEvent) => {
+  /** ✅ Screen -> overlay local -> design px */
+  const getLocalDesign = (e: React.PointerEvent): Pt => {
     const el = overlayRef.current;
     if (!el) return { x: 0, y: 0 };
+
     const r = el.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const sx = e.clientX - r.left;
+    const sy = e.clientY - r.top;
+
+    return screenToDesign(sx, sy, rect);
   };
 
-  // Hit testing (vertex first, then polygon, then point)
+  const inDesignBounds = (p: Pt) =>
+    p.x >= 0 && p.y >= 0 && p.x <= DESIGN_W && p.y <= DESIGN_H;
+
+  // Hit testing (vertex first, then polygon, then point) — all in DESIGN space
   const hitTest = (p: Pt): Selection => {
     const VERT_R2 = 10 * 10;
 
@@ -205,7 +253,7 @@ export default function NavMeshEditor({
       if (dist2(p, cp.p) <= VERT_R2) return { kind: "point", pointId: cp.id };
     }
 
-    // polygon body (so you can select a poly by clicking inside it)
+    // polygon body
     for (const poly of data.walkables) {
       if (poly.points.length >= 3 && pointInPoly(p, poly.points)) {
         return { kind: "walkable", polyId: poly.id };
@@ -224,8 +272,10 @@ export default function NavMeshEditor({
   const onPointerDown = (e: React.PointerEvent) => {
     if (!showOverlay) return;
 
-    const raw = getLocal(e);
+    const raw = getLocalDesign(e);
     const p = snap(raw, snapPx);
+
+    if (clampToDesign && !inDesignBounds(p)) return;
 
     // drag existing when in select mode (or if you click a vertex/point)
     const hit = hitTest(p);
@@ -244,14 +294,12 @@ export default function NavMeshEditor({
           kind: "walkable",
           polyId: hit.polyId,
           vertexIndex: hit.vertexIndex,
-          offset: { x: 0, y: 0 },
         };
       } else if (hit.kind === "collider" && hit.vertexIndex != null) {
         draggingRef.current = {
           kind: "collider",
           polyId: hit.polyId,
           vertexIndex: hit.vertexIndex,
-          offset: { x: 0, y: 0 },
         };
       } else if (hit.kind === "point") {
         const cp = data.collisionPoints.find((x) => x.id === hit.pointId);
@@ -265,10 +313,8 @@ export default function NavMeshEditor({
       } else {
         draggingRef.current = null;
       }
-
       return;
     }
-
 
     if (mode === "point") {
       const id = uid("pt");
@@ -291,8 +337,13 @@ export default function NavMeshEditor({
     if (!showOverlay) return;
     if (!draggingRef.current) return;
 
-    const raw = getLocal(e);
-    const p = snap(raw, snapPx);
+    const raw = getLocalDesign(e);
+    const p0 = snap(raw, snapPx);
+
+    // optionally clamp dragging too
+    const p = clampToDesign
+      ? { x: Math.max(0, Math.min(DESIGN_W, p0.x)), y: Math.max(0, Math.min(DESIGN_H, p0.y)) }
+      : p0;
 
     const drag = draggingRef.current;
 
@@ -315,9 +366,8 @@ export default function NavMeshEditor({
     const id = uid(mode === "walkable" ? "walk" : "col");
     const name =
       draftName.trim() ||
-      `${mode === "walkable" ? "Walkable" : "Collider"} ${mode === "walkable"
-        ? data.walkables.length + 1
-        : data.colliders.length + 1
+      `${mode === "walkable" ? "Walkable" : "Collider"} ${
+        mode === "walkable" ? data.walkables.length + 1 : data.colliders.length + 1
       }`;
 
     const poly: Polygon = { id, name, points: draft };
@@ -359,11 +409,10 @@ export default function NavMeshEditor({
         finishDraft();
       }
       if ((e.key === "Backspace" || e.key === "Delete") && showOverlay) {
-        // If drafting, undo last vertex; otherwise delete selection
         if (draft.length > 0) undoDraft();
         else deleteSelection();
       }
-      if (e.key.toLowerCase() === "v") setShowOverlay((s) => !s); // toggle visibility
+      if (e.key.toLowerCase() === "v") setShowOverlay((s) => !s);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -412,7 +461,13 @@ export default function NavMeshEditor({
                 mode === m ? "bg-white/25" : "bg-white/10 hover:bg-white/20",
               ].join(" ")}
             >
-              {m === "walkable" ? "Draw Walkable" : m === "collider" ? "Draw Collider" : m === "point" ? "Place Point" : "Select/Edit"}
+              {m === "walkable"
+                ? "Draw Walkable"
+                : m === "collider"
+                ? "Draw Collider"
+                : m === "point"
+                ? "Place Point"
+                : "Select/Edit"}
             </button>
           ))}
         </div>
@@ -457,7 +512,8 @@ export default function NavMeshEditor({
         <div className="mt-2 flex items-center justify-between text-xs opacity-80">
           <div>Snap: {snapPx}px</div>
           <div>
-            Walkables: {data.walkables.length} · Colliders: {data.colliders.length} · Points: {data.collisionPoints.length}
+            Walkables: {data.walkables.length} · Colliders: {data.colliders.length} · Points:{" "}
+            {data.collisionPoints.length}
           </div>
         </div>
 
@@ -489,7 +545,7 @@ export default function NavMeshEditor({
                   : sel.kind === "collider"
                   ? `Collider ${sel.polyId.slice(0, 6)}`
                   : `Point ${sel.pointId.slice(0, 6)}`}
-                {("vertexIndex" in sel && sel.vertexIndex != null) ? ` (v${sel.vertexIndex})` : ""}
+                {"vertexIndex" in sel && sel.vertexIndex != null ? ` (v${sel.vertexIndex})` : ""}
               </div>
               <button
                 onClick={deleteSelection}
@@ -503,6 +559,15 @@ export default function NavMeshEditor({
             </div>
           </div>
         )}
+
+        <div className="mt-2 rounded-lg bg-white/10 p-2 text-[11px] opacity-80">
+          <div>
+            Design: {DESIGN_W}×{DESIGN_H}
+          </div>
+          <div>
+            Contain: off({Math.round(rect.offX)},{Math.round(rect.offY)}) · scale {rect.scale.toFixed(3)}
+          </div>
+        </div>
       </div>
 
       {/* Drawing surface */}
@@ -519,57 +584,75 @@ export default function NavMeshEditor({
         onDoubleClick={onDoubleClick}
       >
         <svg className="absolute inset-0 w-full h-full">
-          {/* walkables */}
-          {showOverlay &&
-            data.walkables.map((poly) => (
-              <PolySvg
-                key={poly.id}
-                poly={poly}
-                kind="walkable"
-                selected={sel.kind === "walkable" && sel.polyId === poly.id}
-              />
-            ))}
-
-          {/* colliders */}
-          {showOverlay &&
-            data.colliders.map((poly) => (
-              <PolySvg
-                key={poly.id}
-                poly={poly}
-                kind="collider"
-                selected={sel.kind === "collider" && sel.polyId === poly.id}
-              />
-            ))}
-
-          {/* collision points */}
-          {showOverlay &&
-            data.collisionPoints.map((cp) => (
-              <g key={cp.id}>
-                <circle
-                  cx={cp.p.x}
-                  cy={cp.p.y}
-                  r={6}
-                  fill={sel.kind === "point" && sel.pointId === cp.id ? "rgba(255,80,80,0.9)" : "rgba(255,80,80,0.6)"}
-                  stroke="rgba(255,255,255,0.8)"
-                  strokeWidth={1}
+          {/* ✅ Apply contain transform so DESIGN-space data renders correctly under letterboxing */}
+          <g transform={`translate(${rect.offX} ${rect.offY}) scale(${rect.scale})`}>
+            {/* walkables */}
+            {showOverlay &&
+              data.walkables.map((poly) => (
+                <PolySvg
+                  key={poly.id}
+                  poly={poly}
+                  kind="walkable"
+                  selected={sel.kind === "walkable" && sel.polyId === poly.id}
                 />
-                <text
-                  x={cp.p.x + 10}
-                  y={cp.p.y - 10}
-                  fill="rgba(255,255,255,0.85)"
-                  fontSize={12}
-                  fontFamily="monospace"
-                >
-                  {cp.name}
-                </text>
-              </g>
-            ))}
+              ))}
 
-          {/* draft poly */}
-          {showOverlay && (mode === "walkable" || mode === "collider") && draft.length > 0 && (
-            <DraftSvg
-              points={draft}
-              kind={mode}
+            {/* colliders */}
+            {showOverlay &&
+              data.colliders.map((poly) => (
+                <PolySvg
+                  key={poly.id}
+                  poly={poly}
+                  kind="collider"
+                  selected={sel.kind === "collider" && sel.polyId === poly.id}
+                />
+              ))}
+
+            {/* collision points */}
+            {showOverlay &&
+              data.collisionPoints.map((cp) => (
+                <g key={cp.id}>
+                  <circle
+                    cx={cp.p.x}
+                    cy={cp.p.y}
+                    r={6}
+                    fill={
+                      sel.kind === "point" && sel.pointId === cp.id
+                        ? "rgba(255,80,80,0.9)"
+                        : "rgba(255,80,80,0.6)"
+                    }
+                    stroke="rgba(255,255,255,0.8)"
+                    strokeWidth={1}
+                  />
+                  <text
+                    x={cp.p.x + 10}
+                    y={cp.p.y - 10}
+                    fill="rgba(255,255,255,0.85)"
+                    fontSize={12}
+                    fontFamily="monospace"
+                  >
+                    {cp.name}
+                  </text>
+                </g>
+              ))}
+
+            {/* draft poly */}
+            {showOverlay && (mode === "walkable" || mode === "collider") && draft.length > 0 && (
+              <DraftSvg points={draft} kind={mode} />
+            )}
+          </g>
+
+          {/* ✅ Optional: show the contained design rect outline (debug) */}
+          {showOverlay && (
+            <rect
+              x={rect.offX}
+              y={rect.offY}
+              width={rect.drawW}
+              height={rect.drawH}
+              fill="none"
+              stroke="rgba(255,255,255,0.10)"
+              strokeWidth={2}
+              strokeDasharray="8 8"
             />
           )}
         </svg>
@@ -590,9 +673,8 @@ function PolySvg({
   const stroke = kind === "walkable" ? "rgba(80,200,255,0.95)" : "rgba(255,180,60,0.95)";
   const fill = kind === "walkable" ? "rgba(80,200,255,0.15)" : "rgba(255,180,60,0.12)";
 
-  const d = poly.points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
-    .join(" ") + " Z";
+  const d =
+    poly.points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
 
   return (
     <g>
@@ -624,8 +706,7 @@ function PolySvg({
 function DraftSvg({ points, kind }: { points: Pt[]; kind: "walkable" | "collider" }) {
   const stroke = kind === "walkable" ? "rgba(80,200,255,0.9)" : "rgba(255,180,60,0.9)";
   const fill = kind === "walkable" ? "rgba(80,200,255,0.08)" : "rgba(255,180,60,0.06)";
-  const path =
-    points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
   return (
     <g>

@@ -8,28 +8,20 @@ export const aptLivingroomNavmesh: WalkCollisionData = {
       "name": "Walkable 1",
       "points": [
         {
-          "x": 288,
-          "y": 40
+          "x": 688,
+          "y": 336
         },
         {
-          "x": 1456,
-          "y": 40
+          "x": 688,
+          "y": 1048
         },
         {
-          "x": 1448,
-          "y": 992
+          "x": 1232,
+          "y": 1032
         },
         {
-          "x": 840,
-          "y": 992
-        },
-        {
-          "x": 840,
-          "y": 472
-        },
-        {
-          "x": 296,
-          "y": 456
+          "x": 1232,
+          "y": 320
         }
       ]
     }
@@ -37,3 +29,5 @@ export const aptLivingroomNavmesh: WalkCollisionData = {
   "colliders": [],
   "collisionPoints": []
 };
+
+
