@@ -244,7 +244,7 @@ export default function CasperWalkerThree(props: CasperWalkerProps) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 30 }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 30, pointerEvents: "none" }}>
       <Canvas orthographic gl={{ antialias: false, alpha: true }}>
         <OrthoPixelCamera />
         <Scene
