@@ -23,7 +23,8 @@ import GraphScene from "./scenes/GraphScene";
 import SceneMessageOverlay from "./SceneMessageOverlay";
 import CasperWalker from "./CasperWalker";
 import AptLivingroom from "./scenes/AptLivingRoom";
-import WebGLStage from "./WebGLStage";
+// import WebGLStage from "./WebGLStage";
+import CasperWalkerThree from "./CasperWalkThree";
 
 const AUTHORED_SCENES: Partial<Record<SceneId, React.FC>> = {
   "apt-bedroom": AptBedroom,
@@ -54,7 +55,8 @@ export default function StoryRoot() {
 
       {/* Scene */}
       <SceneComponent />
-      <CasperWalker sheetSrc="/sprites/casper-walk.png" />
+      {/* <CasperWalker sheetSrc="/sprites/casper-walk.png" />
+       */}
       {/* <WebGLStage
         backgroundSrc="/rooms/apt-bedroom.png"
         backgroundNormalSrc="/rooms/apt-bedroom_n.png"
@@ -68,7 +70,7 @@ export default function StoryRoot() {
         scale={1}
         crt
       /> */}
-
+<CasperWalkerThree />
       {/* UI layers */}
       <DialogWindow />
       <ExamineWindow />
