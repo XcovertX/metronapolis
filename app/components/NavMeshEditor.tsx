@@ -386,7 +386,7 @@ export default function NavMeshEditor({
   return (
     <div className="fixed inset-0 z-[9999] pointer-events-none">
       {/* HUD panel */}
-      <div className="pointer-events-auto absolute left-3 top-3 w-[420px] rounded-xl bg-black/70 text-white shadow-lg backdrop-blur p-3 font-mono">
+      <div className="pointer-events-auto absolute left-3 top-[400px] w-[420px] rounded-xl bg-black/70 text-white shadow-lg backdrop-blur p-3 font-mono">
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm font-semibold">NavMesh / Collision Editor</div>
           <button

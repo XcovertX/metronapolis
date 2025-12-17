@@ -26,6 +26,7 @@ import AptLivingroom from "./scenes/AptLivingRoom";
 // import WebGLStage from "./WebGLStage";
 import CasperWalkerThree from "./CasperWalkThree";
 import NavMeshEditor from "./NavMeshEditor";
+import LightingEditor from "./LightingEditor";
 
 const AUTHORED_SCENES: Partial<Record<SceneId, React.FC>> = {
   "apt-bedroom": AptBedroom,
@@ -57,8 +58,7 @@ export default function StoryRoot() {
       {/* Scene */}
       <SceneComponent />
       <CasperWalkerThree />
-      <NavMeshEditor />
-      
+
       {/* UI layers */}
       <DialogWindow />
       <ExamineWindow />
