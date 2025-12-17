@@ -240,7 +240,7 @@ export default function CasperWalkerThree(props: CasperWalkerProps) {
   const normalSrc = props.normalSrc ?? "/sprites/casper-walk_n.png";
 
   const lampInScreen: Lamp = props.lamp ?? {
-    x: 520, y: 260, z: 260, intensity: 100, distance: 2000, decay: 1, color: "#ffd28a",
+    x: 1120, y: 460, z: 20, intensity: 100, distance: 2000, decay: 1, color: "#0579abff",
   };
 
   return (
