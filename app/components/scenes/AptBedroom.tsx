@@ -11,6 +11,8 @@ import type { PlayerOption } from "../OptionsContext";
 export default function AptBedroom() {
   const { advanceTime, goToScene, timeMinutes, flags, setFlags } = useLoopState();
   const { openExamine } = useExamine();
+  const { lastScene } = useLoopState();
+  const [pointX, pointY] = [1200, 1100];
 
   const catHere = getCatLocation(timeMinutes) === "apt-bedroom";
   const showWakeText = !flags.hasWokenUp;
@@ -70,7 +72,9 @@ export default function AptBedroom() {
     <BaseScene
       id="apt-bedroom"
       title="Apartment – Bedroom"
-      // background="/rooms/apt-bedroom.png"
+      background="/rooms/apt-bedroom.png"
+      dimensions={{ width: 632 , height: 632 }}
+      landingSpot={{ x: pointX, y: pointY }}
       description={description}
       options={options}
     />

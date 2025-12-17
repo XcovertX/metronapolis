@@ -87,6 +87,7 @@ export default function AptLivingroom() {
       id="apt-livingroom"
       title="Apartment – Living Room"
       background="/rooms/apt-livingroom.jpg"
+      dimensions={{ width: 746 , height: 1470 }}
       description={description}
       options={options}
     />

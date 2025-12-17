@@ -32,13 +32,16 @@ type WalkCollisionData = {
 type CasperWalkerProps = {
   sheetSrc?: string;
   normalSrc?: string;
-  start?: Point; // screen px (top-left origin)
+  containerStart?: Point; // screen px (top-left origin)
+  containerDimensions?: { width: number; height: number };
   speedPxPerSec?: number;
   walkFps?: number;
   frameCount?: number;
   frameW?: number;
   frameH?: number;
   standingFrameIndex?: number;
+  landingSpot?: Point; // screen px whare Casper starts
+  
 
   /** Legacy single lamp (optional fallback) */
   lamp?: Lamp;
@@ -277,6 +280,7 @@ function CasperSprite({
   frameH,
   standingFrameIndex,
   navWorld,
+  landingWorld,
 }: {
   sheetSrc: string;
   normalSrc: string;
@@ -288,6 +292,7 @@ function CasperSprite({
   frameH: number;
   standingFrameIndex: number;
   navWorld: WalkCollisionData;
+  landingWorld?: Point | null;
 }) {
   const [pos, setPos] = useState<Point>(startWorld);
   const [target, setTarget] = useState<Point | null>(null);
@@ -340,6 +345,20 @@ function CasperSprite({
     window.addEventListener("click", onClick);
     return () => window.removeEventListener("click", onClick);
   }, [ortho, size.width, size.height, navWorld]);
+
+  useEffect(() => {
+    if (!landingWorld) return;
+
+    // clear movement + snap to landing
+    setTarget(null);
+    setPos(landingWorld);
+    setFrame(standingFrameIndex);
+
+    // also update mesh immediately (helps avoid a 1-frame visual lag)
+    if (meshRef.current) {
+      meshRef.current.position.set(landingWorld.x, landingWorld.y, 0);
+    }
+  }, [landingWorld?.x, landingWorld?.y, standingFrameIndex]);
 
   const lastTRef = useRef<number>(0);
   const animAccRef = useRef<number>(0);
@@ -449,7 +468,8 @@ export default function CasperWalker(props: CasperWalkerProps) {
         <Scene
           sheetSrc={sheetSrc}
           normalSrc={normalSrc}
-          startScreen={props.start ?? { x: 1280, y: 520 }}
+          startScreen={props.containerStart ?? { x: 1280, y: 520 }}
+          landingSpot={props.landingSpot}
           lampScreen={lampInScreen}
           navmeshScreen={navmesh}
           lightingScreen={props.lightingData}
@@ -466,10 +486,42 @@ export default function CasperWalker(props: CasperWalkerProps) {
   );
 }
 
+function getContainRect(containerW: number, containerH: number, imgW: number, imgH: number) {
+  const scale = Math.min(containerW / imgW, containerH / imgH);
+  const drawW = imgW * scale;
+  const drawH = imgH * scale;
+  const offX = (containerW - drawW) / 2;
+  const offY = (containerH - drawH) / 2;
+  return { offX, offY, drawW, drawH, scale };
+}
+
+// screen px -> scene px (image space)
+function screenToScene(
+  sx: number, sy: number,
+  rect: { offX: number; offY: number; scale: number }
+) {
+  return {
+    x: (sx - rect.offX) / rect.scale,
+    y: (sy - rect.offY) / rect.scale,
+  };
+}
+
+// scene px -> screen px
+function sceneToScreen(
+  x: number, y: number,
+  rect: { offX: number; offY: number; scale: number }
+) {
+  return {
+    x: rect.offX + x * rect.scale,
+    y: rect.offY + y * rect.scale,
+  };
+}
+
 function Scene({
   sheetSrc,
   normalSrc,
   startScreen,
+  landingSpot,
   lampScreen,
   navmeshScreen,
   lightingScreen,
@@ -484,6 +536,7 @@ function Scene({
   sheetSrc: string;
   normalSrc: string;
   startScreen: Point;
+  landingSpot?: Point;
   lampScreen: Lamp;
   navmeshScreen: WalkCollisionData;
   lightingScreen?: LightingData;
@@ -507,6 +560,11 @@ function Scene({
     const p = screenPxToWorldPx(lampScreen.x, lampScreen.y, size.width, size.height);
     return { ...lampScreen, x: p.x, y: p.y };
   }, [lampScreen, size.width, size.height]);
+
+  const landingWorld = useMemo(() => {
+    if (!landingSpot) return null;
+    return screenPxToWorldPx(landingSpot.x, landingSpot.y, size.width, size.height);
+  }, [landingSpot, size.width, size.height]);
 
   const navWorld = useMemo<WalkCollisionData>(() => {
     const convPoly = (poly: Polygon): Polygon => ({
@@ -556,8 +614,6 @@ function Scene({
     };
   }, [lightingScreen, size.width, size.height]);
 
-  console.log("lightingWorld?", !!lightingWorld, lightingWorld?.lights?.length);
-
   return (
     <>
       {/* ✅ Prefer lightingData; fallback to your old single-lamp + ambient */}
@@ -581,6 +637,7 @@ function Scene({
         frameH={frameH}
         standingFrameIndex={standingFrameIndex}
         navWorld={navWorld}
+        landingWorld={landingWorld}
       />
     </>
   );

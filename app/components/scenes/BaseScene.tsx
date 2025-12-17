@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useLoopState } from "../LoopStateContext";
 import { useOptions, PlayerOption } from "../OptionsContext";
 import CasperWalker from "../CasperWalker";
-import { WalkCollisionData } from "../../game/navMeshs/navmeshRuntime";
 import { useState, useEffect } from "react";
 import { NAVMESH_BY_SCENE } from "@/app/game/navMeshs";
 import { LIGHTING_BY_SCENE } from "@/app/game/lighting";
@@ -15,6 +14,8 @@ type BaseSceneProps = {
   title: string;
   description: string[];
   background?: string; // path to pixel art
+  dimensions?: { width: number; height: number };
+  landingSpot?: { x: number; y: number };
   options: PlayerOption[];
 };
 
@@ -23,6 +24,8 @@ export default function BaseScene({
   title,
   description,
   background,
+  dimensions,
+  landingSpot,
   options
 }: BaseSceneProps) {
 
@@ -53,7 +56,7 @@ export default function BaseScene({
 
   return (
     <>
-      {navmesh && <CasperWalker navmesh={navmesh} lightingData={lighting} />}
+      {navmesh && <CasperWalker navmesh={navmesh} lightingData={lighting} landingSpot={landingSpot} />}
       {showLightingDebug && <LightingDebugOverlay lightingData={lighting} />}
       <section
         style={{

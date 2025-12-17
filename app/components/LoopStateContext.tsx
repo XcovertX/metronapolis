@@ -76,6 +76,8 @@ type LoopStateValue = {
   // scene messages (ambient/delta popups)
   sceneMessages: string[];
   clearSceneMessages: () => void;
+
+  lastScene: string | null;
 };
 
 const LoopStateContext = createContext<LoopStateValue | undefined>(undefined);
@@ -109,6 +111,11 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
 
   const [sceneMessages, setSceneMessages] = useState<string[]>([]);
   const [lastEventAt, setLastEventAt] = useState<number>(() => Date.now());
+  const [lastScene, setLastScene] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLastScene((prev) => (prev === scene ? prev : scene));
+  }, [scene]);
 
   // --- refs so time engine always sees latest state ---
   const sceneRef = useRef<SceneId>(scene);
@@ -297,6 +304,7 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
 
     sceneMessages,
     clearSceneMessages,
+    lastScene,
   };
 
   return <LoopStateContext.Provider value={value}>{children}</LoopStateContext.Provider>;
