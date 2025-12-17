@@ -42,7 +42,10 @@ export function isInsideAny(pt: Pt, polys: Polygon[]) {
  * - NOT inside any collider polygon
  */
 export function isWalkable(pt: Pt, nav: WalkCollisionData) {
-  const inWalk = isInsideAny(pt, nav.walkables);
+  // ✅ If you haven't drawn walkables yet, treat whole world as walkable.
+  const hasWalkables = nav.walkables?.length > 0;
+
+  const inWalk = hasWalkables ? isInsideAny(pt, nav.walkables) : true;
   if (!inWalk) return false;
 
   const inBlock = isInsideAny(pt, nav.colliders);
