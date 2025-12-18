@@ -4,11 +4,12 @@ import Image from "next/image";
 import { useLoopState } from "../LoopStateContext";
 import { useOptions, PlayerOption } from "../OptionsContext";
 import CasperWalker from "../CasperWalker";
-import { WalkCollisionData } from "../../game/navMeshs/navmeshRuntime";
 import { useState, useEffect } from "react";
 import { NAVMESH_BY_SCENE } from "@/app/game/navMeshs";
 import { LIGHTING_BY_SCENE } from "@/app/game/lighting";
 import LightingDebugOverlay from "../LightingDebugOverlay";
+import NavMeshEditor from "../NavMeshEditor";
+import LightingEditor from "../LightingEditor";
 
 type BaseSceneProps = {
   id: string;
@@ -28,11 +29,12 @@ export default function BaseScene({
 
   const { setOptions, clearOptions } = useOptions();
 
-
   const navmesh = NAVMESH_BY_SCENE[id];
   const lighting = LIGHTING_BY_SCENE[id];
 
   const [showLightingDebug, setShowLightingDebug] = useState(false);
+  const [showNavMeshEditor, setShowNavMeshEditor] = useState(false);
+  const [showLightingEditor, setShowLightingEditor] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -51,10 +53,33 @@ export default function BaseScene({
     return () => clearOptions();
   }, [options, setOptions, clearOptions]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+1 toggles NavMeshEditor
+      if (e.ctrlKey && e.key === "1") {
+        e.preventDefault();
+        setShowNavMeshEditor((prev) => !prev);
+      }
+      // Ctrl+2 toggles LightingEditor
+      if (e.ctrlKey && e.key === "2") {
+        e.preventDefault();
+        setShowLightingEditor((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
     <>
       {navmesh && <CasperWalker navmesh={navmesh} lightingData={lighting} />}
       {showLightingDebug && <LightingDebugOverlay lightingData={lighting} />}
+      {(showNavMeshEditor || showLightingEditor) && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {showNavMeshEditor && <NavMeshEditor activeNavmesh={navmesh}/>}
+          {showLightingEditor && <LightingEditor />}
+        </div>
+      )}
       <section
         style={{
           position: "relative",
