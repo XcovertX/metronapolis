@@ -1,10 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useLoopState } from "../LoopStateContext";
-import { useOptions, PlayerOption } from "../OptionsContext";
+import React, { useEffect, useRef, useState } from "react";
 import CasperWalker from "../CasperWalker";
-import { useState, useEffect } from "react";
+import { useOptions, PlayerOption } from "../OptionsContext";
 import { NAVMESH_BY_SCENE } from "@/app/game/navMeshs";
 import { LIGHTING_BY_SCENE } from "@/app/game/lighting";
 import LightingDebugOverlay from "../LightingDebugOverlay";
@@ -15,8 +14,9 @@ type BaseSceneProps = {
   id: string;
   title: string;
   description: string[];
-  background?: string; // path to pixel art
+  background?: string;
   options: PlayerOption[];
+  bgNative: { w: number; h: number };
 };
 
 export default function BaseScene({
@@ -24,9 +24,9 @@ export default function BaseScene({
   title,
   description,
   background,
-  options
+  options,
+  bgNative,
 }: BaseSceneProps) {
-
   const { setOptions, clearOptions } = useOptions();
 
   const navmesh = NAVMESH_BY_SCENE[id];
@@ -36,17 +36,7 @@ export default function BaseScene({
   const [showNavMeshEditor, setShowNavMeshEditor] = useState(false);
   const [showLightingEditor, setShowLightingEditor] = useState(false);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+L toggles LightingDebugOverlay
-      if (e.ctrlKey && e.key.toLowerCase() === "3") {
-        e.preventDefault();
-        setShowLightingDebug((prev) => !prev);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setOptions(options);
@@ -55,15 +45,17 @@ export default function BaseScene({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+1 toggles NavMeshEditor
       if (e.ctrlKey && e.key === "1") {
         e.preventDefault();
-        setShowNavMeshEditor((prev) => !prev);
+        setShowNavMeshEditor((p) => !p);
       }
-      // Ctrl+2 toggles LightingEditor
       if (e.ctrlKey && e.key === "2") {
         e.preventDefault();
-        setShowLightingEditor((prev) => !prev);
+        setShowLightingEditor((p) => !p);
+      }
+      if (e.ctrlKey && e.key.toLowerCase() === "3") {
+        e.preventDefault();
+        setShowLightingDebug((p) => !p);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -72,36 +64,83 @@ export default function BaseScene({
 
   return (
     <>
-      {navmesh && <CasperWalker navmesh={navmesh} lightingData={lighting} />}
       {showLightingDebug && <LightingDebugOverlay lightingData={lighting} />}
+
+      {/* Editors are global overlays; they use stageRef for correct mapping */}
       {(showNavMeshEditor || showLightingEditor) && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {showNavMeshEditor && <NavMeshEditor activeNavmesh={navmesh}/>}
-          {showLightingEditor && <LightingEditor />}
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
+          {showNavMeshEditor && (
+            <NavMeshEditor
+              containerRef={stageRef}
+              bgNative={bgNative}
+              activeNavmesh={navmesh}
+            />
+          )}
+          {showLightingEditor && (
+            <LightingEditor 
+              containerRef={stageRef} 
+              bgNative={bgNative} 
+              activeLighting={lighting}
+              initial={lighting}
+              onChange={(d) => console.log("lighting draft", d)}
+            />
+          )}
         </div>
       )}
+
+      {/* Fullscreen letterbox area */}
       <section
         style={{
           position: "relative",
           width: "100%",
           height: "100vh",
           overflow: "hidden",
+          background: "black",
+          display: "grid",
+          placeItems: "center",
         }}
       >
-        {background && (
-          <Image
-            src={background}
-            alt={title}
-            fill
-            priority
-            style={{
-              objectFit: "contain",
-              backgroundColor: "black",
-              imageRendering: "pixelated",
-            }}
-          />
-        )}
+        {/* ✅ Stage is the true scene rect */}
+        <div
+          ref={stageRef}
+          style={{
+            position: "relative",
+            width: "100vw",
+            height: "100vh",
+            maxWidth: "100vw",
+            maxHeight: "100vh",
+            aspectRatio: `${bgNative.w} / ${bgNative.h}`,
+          }}
+        >
+          {background && (
+            <Image
+              src={background}
+              alt={title}
+              fill
+              priority
+              style={{
+                objectFit: "contain",
+                imageRendering: "pixelated",
+              }}
+            />
+          )}
 
+          {/* ✅ CasperWalker MUST be inside the stage so it shares the exact rect */}
+          {navmesh && (
+            <CasperWalker
+              containerRef={stageRef}
+              bgNative={bgNative}
+              navmesh={navmesh}
+              lightingData={lighting}
+              start={{
+                x: Math.round(bgNative.w * 0.5),
+                y: Math.round(bgNative.h * 0.95),
+              }}
+            />
+          )}
+        </div>
+
+        {/* UI pinned to viewport */}
         <div
           style={{
             position: "absolute",
@@ -116,11 +155,14 @@ export default function BaseScene({
             color: "#f5f5f5",
             fontFamily: "system-ui, sans-serif",
             boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
+            zIndex: 50,
           }}
         >
           <h1 style={{ marginTop: 0, fontSize: 20 }}>{title}</h1>
           {description.map((p, i) => (
-            <p key={i} style={{ margin: 0, marginTop: 8, fontSize: 15 }}>{p}</p>
+            <p key={i} style={{ margin: 0, marginTop: 8, fontSize: 15 }}>
+              {p}
+            </p>
           ))}
         </div>
       </section>

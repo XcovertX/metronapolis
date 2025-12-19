@@ -1,15 +1,23 @@
+// app/components/CasperWalker.tsx
 "use client";
 
 import * as THREE from "three";
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { OrthographicCamera, useTexture } from "@react-three/drei";
 import type { LightingData, LightDef } from "../game/lighting/lightingTypes";
+import Background from "three/src/renderers/common/Background.js";
 
-// ✅ CHANGE THIS PATH to wherever you saved the editor JSON:
-import navmeshJson from "@/app/game/navMeshs/navmesh.json";
-
+/** ----- Types ----- */
 type Point = { x: number; y: number };
+
+type Polygon = { id: string; name: string; points: Point[] };
+export type WalkCollisionData = {
+  version: 1;
+  walkables: Polygon[];
+  colliders: Polygon[];
+  collisionPoints: { id: string; name: string; p: Point }[];
+};
 
 type Lamp = {
   x: number;
@@ -21,44 +29,37 @@ type Lamp = {
   decay?: number;
 };
 
-type Polygon = { id: string; name: string; points: Point[] };
-type WalkCollisionData = {
-  version: 1;
-  walkables: Polygon[];
-  colliders: Polygon[];
-  collisionPoints: { id: string; name: string; p: Point }[];
-};
-
 type CasperWalkerProps = {
+  containerRef: React.RefObject<HTMLElement | null>;
+  bgNative: { w: number; h: number };
+  navmesh: WalkCollisionData;
+  lightingData?: LightingData;
+  start?: Point;
+
   sheetSrc?: string;
   normalSrc?: string;
-  start?: Point; // screen px (top-left origin)
+
   speedPxPerSec?: number;
   walkFps?: number;
+
   frameCount?: number;
   frameW?: number;
   frameH?: number;
   standingFrameIndex?: number;
 
-  /** Legacy single lamp (optional fallback) */
   lamp?: Lamp;
-
-  /** ✅ Scene lighting authored by your LightingEditor (screen px, top-left origin) */
-  lightingData?: LightingData;
-
-  /** Optional override navmesh (otherwise uses imported JSON) */
-  navmesh?: WalkCollisionData;
-
-  /** Debug: render bulb markers for each light */
   showLightMarkers?: boolean;
+  zIndex?: number;
 };
 
+/** ----- helpers ----- */
 function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n));
 }
 
-function screenPxToWorldPx(sx: number, sy: number, w: number, h: number) {
-  return { x: sx - w / 2, y: h / 2 - sy };
+/** IMAGE-native px (top-left) -> WORLD (center origin, +Y up) */
+function imgPxToWorld(p: Point, bg: { w: number; h: number }): Point {
+  return { x: p.x - bg.w / 2, y: bg.h / 2 - p.y };
 }
 
 /** point-in-polygon (ray cast) */
@@ -86,18 +87,12 @@ function isInsideAny(pt: Point, polys: Polygon[]) {
   return false;
 }
 
-/**
- * Walkable rule:
- * - inside at least one walkable polygon
- * - NOT inside any collider polygon
- */
 function isWalkable(pt: Point, nav: WalkCollisionData) {
   if (!isInsideAny(pt, nav.walkables)) return false;
   if (isInsideAny(pt, nav.colliders)) return false;
   return true;
 }
 
-/** step toward dest, but refuse to move into blocked areas (sub-stepped) */
 function stepWithCollision(
   from: Point,
   dest: Point,
@@ -116,17 +111,15 @@ function stepWithCollision(
   const sy = (dy / dist) * (total / n);
 
   let p = { ...from };
-
   for (let i = 0; i < n; i++) {
     const next = { x: p.x + sx, y: p.y + sy };
     if (!isWalkable(next, nav)) return p;
     p = next;
   }
-
   return p;
 }
 
-/** Legacy single-lamp helper (optional) */
+/** ----- Lighting components ----- */
 function LampLight({ lamp }: { lamp: Lamp }) {
   const color = lamp.color ?? "#ffd28a";
   const intensity = lamp.intensity ?? 2.2;
@@ -151,7 +144,6 @@ function LampLight({ lamp }: { lamp: Lamp }) {
   );
 }
 
-/** ✅ Proper spotlight target handling */
 function SpotLightWithTarget({
   light,
   position,
@@ -170,7 +162,6 @@ function SpotLightWithTarget({
     if (!spotRef.current) return;
     spotRef.current.target = targetObj;
     return () => {
-      // detach on unmount
       if (spotRef.current) spotRef.current.target = new THREE.Object3D();
     };
   }, [targetObj]);
@@ -206,7 +197,6 @@ function SpotLightWithTarget({
   );
 }
 
-/** ✅ Scene lighting from LightingData in WORLD space */
 function SceneLighting({
   lightingWorld,
   showMarkers,
@@ -223,7 +213,6 @@ function SceneLighting({
   return (
     <>
       <ambientLight color={ambColor} intensity={ambIntensity} />
-
       {lightingWorld.lights.map((l) => {
         if (!l.enabled) return null;
 
@@ -243,16 +232,9 @@ function SceneLighting({
           );
         }
 
-        // point light
         return (
           <React.Fragment key={l.id}>
-            <pointLight
-              position={pos}
-              color={color}
-              intensity={l.intensity}
-              distance={l.distance}
-              decay={l.decay}
-            />
+            <pointLight position={pos} color={color} intensity={l.intensity} distance={l.distance} decay={l.decay} />
             {showMarkers && (
               <mesh position={pos}>
                 <sphereGeometry args={[8, 16, 16]} />
@@ -266,6 +248,7 @@ function SceneLighting({
   );
 }
 
+/** ----- Casper sprite ----- */
 function CasperSprite({
   sheetSrc,
   normalSrc,
@@ -277,6 +260,7 @@ function CasperSprite({
   frameH,
   standingFrameIndex,
   navWorld,
+  setTargetRef,
 }: {
   sheetSrc: string;
   normalSrc: string;
@@ -288,17 +272,33 @@ function CasperSprite({
   frameH: number;
   standingFrameIndex: number;
   navWorld: WalkCollisionData;
+  setTargetRef: React.MutableRefObject<((p: Point) => void) | null>;
 }) {
   const [pos, setPos] = useState<Point>(startWorld);
   const [target, setTarget] = useState<Point | null>(null);
   const [frame, setFrame] = useState<number>(standingFrameIndex);
   const [facing, setFacing] = useState<1 | -1>(1);
 
+  useEffect(() => {
+    setPos((p) => (target ? p : startWorld));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startWorld.x, startWorld.y]);
+
+  useEffect(() => {
+    setTargetRef.current = (dest: Point) => {
+      if (!isWalkable(dest, navWorld)) return;
+      setTarget(dest);
+      setFrame(0);
+    };
+    return () => {
+      setTargetRef.current = null;
+    };
+  }, [setTargetRef, navWorld]);
+
   const meshRef = useRef<THREE.Mesh>(null);
   const [diffuse, normal] = useTexture([sheetSrc, normalSrc]);
 
   useMemo(() => {
-  
     diffuse.magFilter = THREE.NearestFilter;
     diffuse.minFilter = THREE.NearestFilter;
     diffuse.generateMipmaps = false;
@@ -316,30 +316,6 @@ function CasperSprite({
     diffuse.needsUpdate = true;
     normal.needsUpdate = true;
   }, [diffuse, normal, frameCount]);
-
-  const { camera, size } = useThree();
-  const ortho = camera as THREE.OrthographicCamera;
-
-  useEffect(() => {
-    const onClick = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-
-      const xNdc = (e.clientX / size.width) * 2 - 1;
-      const yNdc = -(e.clientY / size.height) * 2 + 1;
-
-      const w = new THREE.Vector3(xNdc, yNdc, 0).unproject(ortho);
-      const dest = { x: w.x, y: w.y };
-
-      // refuse targets not walkable
-      if (!isWalkable(dest, navWorld)) return;
-
-      setTarget(dest);
-      setFrame(0);
-    };
-
-    window.addEventListener("click", onClick);
-    return () => window.removeEventListener("click", onClick);
-  }, [ortho, size.width, size.height, navWorld]);
 
   const lastTRef = useRef<number>(0);
   const animAccRef = useRef<number>(0);
@@ -411,28 +387,38 @@ function CasperSprite({
   }, [frameW, frameH]);
 
   return (
-    <mesh ref={meshRef} geometry={geom}>
-      <meshStandardMaterial
-        map={diffuse}
-        normalMap={normal}
-        transparent
-        roughness={0.85}
-        metalness={0.0}
-        emissive={"#000000"}
-        emissiveIntensity={0.0}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
+    <>
+      <mesh ref={meshRef} geometry={geom} raycast={null as any}>
+        <meshStandardMaterial
+          map={diffuse}
+          normalMap={normal}
+          transparent
+          roughness={0.85}
+          metalness={0.0}
+          emissive={"#000000"}
+          emissiveIntensity={0.0}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+    </>
   );
 }
 
+/** ----- Main export ----- */
 export default function CasperWalker(props: CasperWalkerProps) {
   const sheetSrc = props.sheetSrc ?? "/sprites/casper-walk.png";
   const normalSrc = props.normalSrc ?? "/sprites/casper-walk_n.png";
 
-  const lampInScreen: Lamp = props.lamp ?? {
-    x: 520,
-    y: 260,
+  const speedPxPerSec = props.speedPxPerSec ?? 260;
+  const walkFps = props.walkFps ?? 12;
+  const frameCount = props.frameCount ?? 8;
+  const frameW = props.frameW ?? 256;
+  const frameH = props.frameH ?? 256;
+  const standingFrameIndex = props.standingFrameIndex ?? 7;
+
+  const lampImg: Lamp = props.lamp ?? {
+    x: Math.round(props.bgNative.w * 0.35),
+    y: Math.round(props.bgNative.h * 0.25),
     z: 260,
     intensity: 10,
     distance: 1200,
@@ -440,26 +426,98 @@ export default function CasperWalker(props: CasperWalkerProps) {
     color: "#ffd28a",
   };
 
-  const navmesh = props.navmesh ?? (navmeshJson as WalkCollisionData);
+  const startImg = props.start ?? {
+    x: Math.round(props.bgNative.w * 0.5),
+    y: Math.round(props.bgNative.h * 0.55),
+  };
+
+  // ✅ Measure the stage, and drive Canvas sizing from it.
+  const [stageSize, setStageSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const [stagePx, setStagePx] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+
+  useLayoutEffect(() => {
+    const el = props.containerRef.current;
+    if (!el) return;
+
+    const read = () => {
+      const r = el.getBoundingClientRect();
+      const w = Math.round(r.width);
+      const h = Math.round(r.height);
+      setStagePx((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
+
+    read();
+
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+
+    // one extra frame after layout settles (fixes “aspectRatio just applied” cases)
+    const raf = requestAnimationFrame(read);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [props.containerRef]);
+
+  
+  useEffect(() => {
+    const el = props.containerRef.current;
+    if (!el) return;
+
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setStageSize({ w: r.width, h: r.height });
+    };
+
+    update();
+
+    const ro = new ResizeObserver(() => update());
+    ro.observe(el);
+
+    return () => ro.disconnect();
+  }, [props.containerRef]);
+
+  const ready = stageSize.w > 2 && stageSize.h > 2;
+  if (!ready) return null;
+
+  // ✅ zoom computed from REAL stage pixels (not R3F's first-tick size)
+  const zoom = Math.min(stageSize.w / props.bgNative.w, stageSize.h / props.bgNative.h);
+  console.log("CasperWalker: stageSize=", stageSize, " zoom=", zoom, );
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 30, pointerEvents: "none" }}>
-      <Canvas orthographic gl={{ antialias: false, alpha: true }}>
-        <OrthoPixelCamera />
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        overflow: "hidden",
+        zIndex: props.zIndex ?? 30,
+        pointerEvents: "auto",
+      }}
+    >
+      <Canvas
+        orthographic
+        gl={{ antialias: false, alpha: true }}
+        // ✅ force correct initial sizing (prevents the first-frame distortion)
+        style={{ width: stageSize.w, height: stageSize.h}}
+      >
+        <OrthoBgCamera stageSize={stageSize} zoom={zoom} />
+
         <Scene
+          bgNative={props.bgNative}
           sheetSrc={sheetSrc}
           normalSrc={normalSrc}
-          startScreen={props.start ?? { x: 1280, y: 520 }}
-          lampScreen={lampInScreen}
-          navmeshScreen={navmesh}
-          lightingScreen={props.lightingData}
+          startImg={startImg}
+          navmeshImg={props.navmesh}
+          lightingImg={props.lightingData}
+          lampImg={lampImg}
           showLightMarkers={props.showLightMarkers ?? false}
-          speedPxPerSec={props.speedPxPerSec ?? 260}
-          walkFps={props.walkFps ?? 12}
-          frameCount={props.frameCount ?? 8}
-          frameW={props.frameW ?? 256}
-          frameH={props.frameH ?? 256}
-          standingFrameIndex={props.standingFrameIndex ?? 7}
+          speedPxPerSec={speedPxPerSec}
+          walkFps={walkFps}
+          frameCount={frameCount}
+          frameW={frameW}
+          frameH={frameH}
+          standingFrameIndex={standingFrameIndex}
         />
       </Canvas>
     </div>
@@ -467,12 +525,13 @@ export default function CasperWalker(props: CasperWalkerProps) {
 }
 
 function Scene({
+  bgNative,
   sheetSrc,
   normalSrc,
-  startScreen,
-  lampScreen,
-  navmeshScreen,
-  lightingScreen,
+  startImg,
+  navmeshImg,
+  lightingImg,
+  lampImg,
   showLightMarkers,
   speedPxPerSec,
   walkFps,
@@ -481,12 +540,13 @@ function Scene({
   frameH,
   standingFrameIndex,
 }: {
+  bgNative: { w: number; h: number };
   sheetSrc: string;
   normalSrc: string;
-  startScreen: Point;
-  lampScreen: Lamp;
-  navmeshScreen: WalkCollisionData;
-  lightingScreen?: LightingData;
+  startImg: Point;
+  navmeshImg: WalkCollisionData;
+  lightingImg?: LightingData;
+  lampImg: Lamp;
   showLightMarkers: boolean;
   speedPxPerSec: number;
   walkFps: number;
@@ -495,57 +555,35 @@ function Scene({
   frameH: number;
   standingFrameIndex: number;
 }) {
-  const { size } = useThree();
-  
+  const setTargetRef = useRef<((p: Point) => void) | null>(null);
 
-  const startWorld = useMemo(
-    () => screenPxToWorldPx(startScreen.x, startScreen.y, size.width, size.height),
-    [startScreen, size.width, size.height]
-  );
-
-  const lampWorld = useMemo(() => {
-    const p = screenPxToWorldPx(lampScreen.x, lampScreen.y, size.width, size.height);
-    return { ...lampScreen, x: p.x, y: p.y };
-  }, [lampScreen, size.width, size.height]);
+  const startWorld = useMemo(() => imgPxToWorld(startImg, bgNative), [startImg, bgNative]);
 
   const navWorld = useMemo<WalkCollisionData>(() => {
     const convPoly = (poly: Polygon): Polygon => ({
       ...poly,
-      points: poly.points.map((pt) => screenPxToWorldPx(pt.x, pt.y, size.width, size.height)),
+      points: poly.points.map((pt) => imgPxToWorld(pt, bgNative)),
     });
 
     return {
-      ...navmeshScreen,
-      walkables: navmeshScreen.walkables.map(convPoly),
-      colliders: navmeshScreen.colliders.map(convPoly),
-      collisionPoints: navmeshScreen.collisionPoints.map((cp) => ({
+      ...navmeshImg,
+      walkables: navmeshImg.walkables.map(convPoly),
+      colliders: navmeshImg.colliders.map(convPoly),
+      collisionPoints: navmeshImg.collisionPoints.map((cp) => ({
         ...cp,
-        p: screenPxToWorldPx(cp.p.x, cp.p.y, size.width, size.height),
+        p: imgPxToWorld(cp.p, bgNative),
       })),
     };
-  }, [navmeshScreen, size.width, size.height]);
+  }, [navmeshImg, bgNative]);
 
-  // ✅ Convert lighting from screen px -> world px
   const lightingWorld = useMemo<LightingData | undefined>(() => {
-    if (!lightingScreen) return undefined;
+    if (!lightingImg) return undefined;
 
     return {
-      ...lightingScreen,
-      rooms: lightingScreen.rooms.map((r) => ({
-        ...r,
-        // rooms are only for organization; keep in screen-space if you want
-        // but we’ll convert anyway in case you draw them as overlays later
-        x: screenPxToWorldPx(r.x, r.y, size.width, size.height).x,
-        y: screenPxToWorldPx(r.x, r.y, size.width, size.height).y,
-        w: r.w,
-        h: r.h,
-      })),
-      lights: lightingScreen.lights.map((l) => {
-        const p = screenPxToWorldPx(l.x, l.y, size.width, size.height);
-        const tgt = l.target
-          ? screenPxToWorldPx(l.target.x, l.target.y, size.width, size.height)
-          : undefined;
-
+      ...lightingImg,
+      lights: lightingImg.lights.map((l) => {
+        const p = imgPxToWorld({ x: l.x, y: l.y }, bgNative);
+        const tgt = l.target ? imgPxToWorld(l.target, bgNative) : undefined;
         return {
           ...l,
           x: p.x,
@@ -554,13 +592,28 @@ function Scene({
         };
       }),
     };
-  }, [lightingScreen, size.width, size.height]);
+  }, [lightingImg, bgNative]);
 
-  console.log("lightingWorld?", !!lightingWorld, lightingWorld?.lights?.length);
+  const lampWorld = useMemo(() => {
+    const p = imgPxToWorld({ x: lampImg.x, y: lampImg.y }, bgNative);
+    return { ...lampImg, x: p.x, y: p.y };
+  }, [lampImg, bgNative]);
 
   return (
     <>
-      {/* ✅ Prefer lightingData; fallback to your old single-lamp + ambient */}
+      {/* Click-catcher: whole image plane */}
+      <mesh
+        position={[0, 0, -0.01]}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          e.stopPropagation();
+          setTargetRef.current?.({ x: e.point.x, y: e.point.y });
+        }}
+      >
+        <planeGeometry args={[bgNative.w, bgNative.h]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
+
       {lightingWorld ? (
         <SceneLighting lightingWorld={lightingWorld} showMarkers={showLightMarkers} />
       ) : (
@@ -581,24 +634,33 @@ function Scene({
         frameH={frameH}
         standingFrameIndex={standingFrameIndex}
         navWorld={navWorld}
+        setTargetRef={setTargetRef}
       />
     </>
   );
 }
 
-function OrthoPixelCamera() {
-  const { size } = useThree();
+/** Camera frustum is in BG-native units; zoom provided by stage measurement. */
+function OrthoBgCamera({ stageSize, zoom }: { stageSize: { w: number; h: number }; zoom: number }) {
+  const camRef = useRef<THREE.OrthographicCamera | null>(null);
+
+  useEffect(() => {
+    console.log("bgNative=", stageSize, " zoom=", zoom);
+    camRef.current?.updateProjectionMatrix();
+  }, [zoom, stageSize.w, stageSize.h]);
+
   return (
     <OrthographicCamera
+      ref={camRef as any}
       makeDefault
       position={[0, 0, 1000]}
-      near={-2000}
-      far={2000}
-      left={-size.width / 2}
-      right={size.width / 2}
-      top={size.height / 2}
-      bottom={-size.height / 2}
-      zoom={1}
+      near={-5000}
+      far={5000}
+      left={-stageSize.w / 2}
+      right={stageSize.w / 2}
+      top={stageSize.h / 2}
+      bottom={-stageSize.h / 2}
+      zoom={zoom}
     />
   );
 }

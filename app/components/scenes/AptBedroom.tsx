@@ -67,12 +67,13 @@ export default function AptBedroom() {
   }
 
   return (
-    <BaseScene
-      id="apt-bedroom"
-      title="Apartment – Bedroom"
-      // background="/rooms/apt-bedroom.png"
-      description={description}
-      options={options}
-    />
+  <BaseScene
+    id="apt-bedroom"
+    title="Apartment – Bedroom"
+    background="/rooms/apt-bedroom.png"
+    bgNative={{ w: 632, h: 632 }}   // ✅ set to the actual image size
+    description={description}
+    options={options}
+  />
   );
 }

@@ -1,3 +1,4 @@
+// app/components/LightingEditor.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -9,7 +10,7 @@ export type LightType = "point" | "spot" | "area";
 export type Room = {
   id: string;
   name: string;
-  // screen px (top-left origin)
+  // ✅ NATIVE px (top-left origin)
   x: number;
   y: number;
   w: number;
@@ -21,22 +22,21 @@ export type LightDef = {
   name: string;
   type: LightType;
 
-  // screen px (top-left origin) so it matches your editor mental model
+  // ✅ NATIVE px (top-left origin)
   x: number;
   y: number;
-  z: number; // height into screen
+  z: number;
 
-  color: string; // "#ffd28a"
+  color: string;
   intensity: number;
-  distance: number; // for point/spot falloff range
-  decay: number; // 0..2 commonly
-  angleDeg?: number; // spot only
-  penumbra?: number; // spot only 0..1
-  target?: Pt; // spot only (screen px)
-  roomId?: string; // optional grouping
+  distance: number;
+  decay: number;
+  angleDeg?: number;
+  penumbra?: number;
+  target?: Pt; // ✅ NATIVE px
+  roomId?: string;
   enabled: boolean;
 
-  // optional: little emissive “bulb” marker
   showBulb?: boolean;
   bulbRadius?: number;
 };
@@ -51,10 +51,24 @@ export type LightingData = {
 type Mode = "select" | "place-light" | "draw-room";
 
 type Props = {
+  /** ✅ REQUIRED: the stage div that contains your Image (aspect-locked container) */
+  containerRef: React.RefObject<HTMLElement | null>;
+
+  /** ✅ REQUIRED: background native pixel size */
+  bgNative: { w: number; h: number };
+
   initial?: LightingData;
   onChange?: (data: LightingData) => void;
+
   startHidden?: boolean;
   snapPx?: number;
+  clampToStage?: boolean;
+
+  /** ✅ read-only overlay for “current lights” (native px) */
+  activeLighting?: LightingData;
+
+  showActiveRooms?: boolean;
+  showSpotTargets?: boolean;
 };
 
 const DEFAULT: LightingData = {
@@ -82,11 +96,48 @@ type Selection =
   | { kind: "light"; id: string }
   | { kind: "room"; id: string };
 
+type Box = { left: number; top: number; w: number; h: number };
+
+/** ✅ For objectFit:"contain": compute the image rect inside the stage rect */
+function computeContainRect(stage: Box, native: { w: number; h: number }): Box {
+  const sw = stage.w;
+  const sh = stage.h;
+  const iw = native.w;
+  const ih = native.h;
+
+  if (sw <= 0 || sh <= 0 || iw <= 0 || ih <= 0) return stage;
+
+  const stageAspect = sw / sh;
+  const imgAspect = iw / ih;
+
+  if (stageAspect > imgAspect) {
+    // stage is wider → letterbox left/right, image fills height
+    const h = sh;
+    const w = h * imgAspect;
+    const left = stage.left + (sw - w) / 2;
+    const top = stage.top;
+    return { left, top, w, h };
+  } else {
+    // stage is taller → letterbox top/bottom, image fills width
+    const w = sw;
+    const h = w / imgAspect;
+    const left = stage.left;
+    const top = stage.top + (sh - h) / 2;
+    return { left, top, w, h };
+  }
+}
+
 export default function LightingEditor({
+  containerRef,
+  bgNative,
   initial,
   onChange,
   startHidden = false,
   snapPx = 8,
+  clampToStage = true,
+  activeLighting,
+  showActiveRooms = false,
+  showSpotTargets = true,
 }: Props) {
   const [data, setData] = useState<LightingData>(initial ?? DEFAULT);
   const [showOverlay, setShowOverlay] = useState(!startHidden);
@@ -96,28 +147,72 @@ export default function LightingEditor({
   // draft room rect
   const [roomDraft, setRoomDraft] = useState<null | { start: Pt; end: Pt; name: string }>(null);
 
+  // stage rect + derived image rect (contain)
+  const [stageBox, setStageBox] = useState<Box | null>(null);
+  const [imgBox, setImgBox] = useState<Box | null>(null);
+
   const overlayRef = useRef<HTMLDivElement | null>(null);
 
-  // dragging
   const dragRef = useRef<
-    null | { kind: "light"; id: string; dx: number; dy: number } | { kind: "room"; id: string; dx: number; dy: number }
+    | null
+    | { kind: "light"; id: string; dx: number; dy: number }
+    | { kind: "room"; id: string; dx: number; dy: number }
   >(null);
+
+  useEffect(() => {
+    if (initial) setData(initial);
+  }, [initial]);
 
   useEffect(() => {
     onChange?.(data);
   }, [data, onChange]);
 
+  useEffect(() => {
+    const update = () => {
+      const el = containerRef.current;
+      if (!el) return;
+
+      const r = el.getBoundingClientRect();
+      const s: Box = { left: r.left, top: r.top, w: r.width, h: r.height };
+      setStageBox(s);
+
+      const img = computeContainRect(s, bgNative);
+      setImgBox(img);
+    };
+
+    update();
+
+    const ro = new ResizeObserver(update);
+    if (containerRef.current) ro.observe(containerRef.current);
+
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [containerRef, bgNative.w, bgNative.h]);
+
   const jsonText = useMemo(() => JSON.stringify(data, null, 2), [data]);
 
-  const getLocal = (e: React.PointerEvent) => {
-    const el = overlayRef.current;
-    if (!el) return { x: 0, y: 0 };
-    const r = el.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  const inNativeBounds = (p: Pt) => p.x >= 0 && p.y >= 0 && p.x <= bgNative.w && p.y <= bgNative.h;
+
+  /** ✅ pointer -> native px (relative to the CONTAINED IMAGE RECT) */
+  const getNativeFromEvent = (e: React.PointerEvent): Pt => {
+    if (!imgBox) return { x: 0, y: 0 };
+
+    const xLocal = e.clientX - imgBox.left;
+    const yLocal = e.clientY - imgBox.top;
+
+    const xNative = (xLocal / Math.max(1, imgBox.w)) * bgNative.w;
+    const yNative = (yLocal / Math.max(1, imgBox.h)) * bgNative.h;
+
+    return { x: xNative, y: yNative };
   };
 
   const hitTest = (p: Pt): Selection => {
-    // lights (circle hit)
     for (let i = data.lights.length - 1; i >= 0; i--) {
       const L = data.lights[i];
       const rr = (L.bulbRadius ?? 10) + 8;
@@ -125,7 +220,6 @@ export default function LightingEditor({
       const dy = p.y - L.y;
       if (dx * dx + dy * dy <= rr * rr) return { kind: "light", id: L.id };
     }
-    // rooms (rect hit)
     for (let i = data.rooms.length - 1; i >= 0; i--) {
       const R = data.rooms[i];
       if (p.x >= R.x && p.x <= R.x + R.w && p.y >= R.y && p.y <= R.y + R.h) return { kind: "room", id: R.id };
@@ -137,11 +231,6 @@ export default function LightingEditor({
     if (sel.kind !== "light") return null;
     return data.lights.find((l) => l.id === sel.id) ?? null;
   }, [sel, data.lights]);
-
-  const selectedRoom = useMemo(() => {
-    if (sel.kind !== "room") return null;
-    return data.rooms.find((r) => r.id === sel.id) ?? null;
-  }, [sel, data.rooms]);
 
   const updateLight = (id: string, patch: Partial<LightDef>) => {
     setData((d) => ({
@@ -161,7 +250,6 @@ export default function LightingEditor({
     setData((d) => {
       if (sel.kind === "light") return { ...d, lights: d.lights.filter((l) => l.id !== sel.id) };
       if (sel.kind === "room") {
-        // keep lights, but clear roomId references
         return {
           ...d,
           rooms: d.rooms.filter((r) => r.id !== sel.id),
@@ -186,10 +274,15 @@ export default function LightingEditor({
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (!showOverlay) return;
+    if (!showOverlay || !imgBox) return;
 
-    const raw = getLocal(e);
-    const p = snap(raw, snapPx);
+    const raw = getNativeFromEvent(e);
+    const p0 = snap(raw, snapPx);
+    const p = clampToStage
+      ? { x: clamp(p0.x, 0, bgNative.w), y: clamp(p0.y, 0, bgNative.h) }
+      : p0;
+
+    if (clampToStage && !inNativeBounds(p)) return;
 
     if (mode === "place-light") {
       const id = uid("light");
@@ -218,7 +311,6 @@ export default function LightingEditor({
       if (!roomDraft) {
         setRoomDraft({ start: p, end: p, name: `Room ${data.rooms.length + 1}` });
       } else {
-        // finalize
         const x = Math.min(roomDraft.start.x, roomDraft.end.x);
         const y = Math.min(roomDraft.start.y, roomDraft.end.y);
         const w = Math.abs(roomDraft.end.x - roomDraft.start.x);
@@ -226,10 +318,7 @@ export default function LightingEditor({
 
         if (w >= 10 && h >= 10) {
           const id = uid("room");
-          setData((d) => ({
-            ...d,
-            rooms: [...d.rooms, { id, name: roomDraft.name, x, y, w, h }],
-          }));
+          setData((d) => ({ ...d, rooms: [...d.rooms, { id, name: roomDraft.name, x, y, w, h }] }));
           setSel({ kind: "room", id });
         }
         setRoomDraft(null);
@@ -238,7 +327,6 @@ export default function LightingEditor({
       return;
     }
 
-    // select & drag
     const hit = hitTest(p);
     setSel(hit);
 
@@ -254,10 +342,13 @@ export default function LightingEditor({
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!showOverlay) return;
+    if (!showOverlay || !imgBox) return;
 
-    const raw = getLocal(e);
-    const p = snap(raw, snapPx);
+    const raw = getNativeFromEvent(e);
+    const p0 = snap(raw, snapPx);
+    const p = clampToStage
+      ? { x: clamp(p0.x, 0, bgNative.w), y: clamp(p0.y, 0, bgNative.h) }
+      : p0;
 
     if (mode === "draw-room" && roomDraft) {
       setRoomDraft((d) => (d ? { ...d, end: p } : d));
@@ -267,11 +358,8 @@ export default function LightingEditor({
     const drag = dragRef.current;
     if (!drag) return;
 
-    if (drag.kind === "light") {
-      updateLight(drag.id, { x: p.x + drag.dx, y: p.y + drag.dy });
-    } else if (drag.kind === "room") {
-      updateRoom(drag.id, { x: p.x + drag.dx, y: p.y + drag.dy });
-    }
+    if (drag.kind === "light") updateLight(drag.id, { x: p.x + drag.dx, y: p.y + drag.dy });
+    else updateRoom(drag.id, { x: p.x + drag.dx, y: p.y + drag.dy });
   };
 
   const onPointerUp = () => {
@@ -286,9 +374,7 @@ export default function LightingEditor({
         setSel({ kind: "none" });
         setMode("select");
       }
-      if ((e.key === "Backspace" || e.key === "Delete") && showOverlay) {
-        deleteSelection();
-      }
+      if ((e.key === "Backspace" || e.key === "Delete") && showOverlay) deleteSelection();
       if (e.key.toLowerCase() === "v") setShowOverlay((s) => !s);
       if (e.key.toLowerCase() === "l") setMode("place-light");
       if (e.key.toLowerCase() === "r") setMode("draw-room");
@@ -321,27 +407,32 @@ export default function LightingEditor({
         <div className="mt-2 flex flex-wrap gap-2">
           <button
             onClick={() => setMode("select")}
-            className={`rounded-md px-2 py-1 text-xs ${mode === "select" ? "bg-white/25" : "bg-white/10 hover:bg-white/20"}`}
+            className={`rounded-md px-2 py-1 text-xs ${
+              mode === "select" ? "bg-white/25" : "bg-white/10 hover:bg-white/20"
+            }`}
           >
             Select/Edit
           </button>
           <button
             onClick={() => setMode("place-light")}
-            className={`rounded-md px-2 py-1 text-xs ${mode === "place-light" ? "bg-white/25" : "bg-white/10 hover:bg-white/20"}`}
+            className={`rounded-md px-2 py-1 text-xs ${
+              mode === "place-light" ? "bg-white/25" : "bg-white/10 hover:bg-white/20"
+            }`}
             title="Hotkey: L"
           >
             Place Light (L)
           </button>
           <button
             onClick={() => setMode("draw-room")}
-            className={`rounded-md px-2 py-1 text-xs ${mode === "draw-room" ? "bg-white/25" : "bg-white/10 hover:bg-white/20"}`}
+            className={`rounded-md px-2 py-1 text-xs ${
+              mode === "draw-room" ? "bg-white/25" : "bg-white/10 hover:bg-white/20"
+            }`}
             title="Hotkey: R"
           >
             Draw Room (R)
           </button>
         </div>
 
-        {/* Ambient */}
         <div className="mt-3 rounded-lg bg-white/10 p-2">
           <div className="flex items-center justify-between">
             <div className="text-xs font-semibold">Ambient</div>
@@ -349,9 +440,7 @@ export default function LightingEditor({
               <input
                 type="checkbox"
                 checked={data.ambient.enabled}
-                onChange={(e) =>
-                  setData((d) => ({ ...d, ambient: { ...d.ambient, enabled: e.target.checked } }))
-                }
+                onChange={(e) => setData((d) => ({ ...d, ambient: { ...d.ambient, enabled: e.target.checked } }))}
               />
               enabled
             </label>
@@ -363,9 +452,7 @@ export default function LightingEditor({
               <input
                 type="color"
                 value={data.ambient.color}
-                onChange={(e) =>
-                  setData((d) => ({ ...d, ambient: { ...d.ambient, color: e.target.value } }))
-                }
+                onChange={(e) => setData((d) => ({ ...d, ambient: { ...d.ambient, color: e.target.value } }))}
                 className="h-8 w-full rounded-md bg-black/40"
               />
             </label>
@@ -386,7 +473,6 @@ export default function LightingEditor({
           </div>
         </div>
 
-        {/* Selection editor */}
         <div className="mt-3 rounded-lg bg-white/10 p-2 text-xs">
           <div className="flex items-center justify-between">
             <div className="font-semibold">Selection</div>
@@ -400,23 +486,6 @@ export default function LightingEditor({
           </div>
 
           {sel.kind === "none" && <div className="mt-2 opacity-70">Click a light or room to edit.</div>}
-
-          {selectedRoom && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="flex flex-col gap-1 col-span-2">
-                <span className="opacity-80">Room name</span>
-                <input
-                  value={selectedRoom.name}
-                  onChange={(e) => updateRoom(selectedRoom.id, { name: e.target.value })}
-                  className="rounded-md bg-black/40 px-2 py-1 outline-none"
-                />
-              </label>
-
-              <div className="col-span-2 opacity-70">
-                Drag room to reposition. (Room is just an organizer, not a collider.)
-              </div>
-            </div>
-          )}
 
           {selectedLight && (
             <div className="mt-2 grid grid-cols-2 gap-2">
@@ -511,34 +580,6 @@ export default function LightingEditor({
                 />
               </label>
 
-              {selectedLight.type === "spot" && (
-                <>
-                  <label className="flex flex-col gap-1 col-span-2">
-                    <span className="opacity-80">Angle (deg): {Math.round(selectedLight.angleDeg ?? 35)}</span>
-                    <input
-                      type="range"
-                      min={5}
-                      max={90}
-                      step={1}
-                      value={selectedLight.angleDeg ?? 35}
-                      onChange={(e) => updateLight(selectedLight.id, { angleDeg: Number(e.target.value) })}
-                    />
-                  </label>
-
-                  <label className="flex flex-col gap-1 col-span-2">
-                    <span className="opacity-80">Penumbra: {(selectedLight.penumbra ?? 0.25).toFixed(2)}</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={selectedLight.penumbra ?? 0.25}
-                      onChange={(e) => updateLight(selectedLight.id, { penumbra: Number(e.target.value) })}
-                    />
-                  </label>
-                </>
-              )}
-
               <label className="flex flex-col gap-1 col-span-2">
                 <span className="opacity-80">Room assignment</span>
                 <select
@@ -554,20 +595,10 @@ export default function LightingEditor({
                   ))}
                 </select>
               </label>
-
-              <label className="flex items-center gap-2 col-span-2">
-                <input
-                  type="checkbox"
-                  checked={selectedLight.showBulb ?? true}
-                  onChange={(e) => updateLight(selectedLight.id, { showBulb: e.target.checked })}
-                />
-                <span className="opacity-80">Show bulb marker</span>
-              </label>
             </div>
           )}
         </div>
 
-        {/* Import/export */}
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             onClick={() => navigator.clipboard.writeText(jsonText)}
@@ -588,91 +619,151 @@ export default function LightingEditor({
 
         <div className="mt-2 text-[11px] opacity-70">
           Hotkeys: <b>V</b>=toggle overlay, <b>L</b>=place light, <b>R</b>=draw room, <b>Del</b>=delete
+          {stageBox && imgBox && (
+            <div className="mt-1">
+              stage {Math.round(stageBox.w)}×{Math.round(stageBox.h)} · img{" "}
+              {Math.round(imgBox.w)}×{Math.round(imgBox.h)}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Overlay */}
-      <div
-        ref={overlayRef}
-        className="absolute inset-0"
-        style={{ pointerEvents: showOverlay ? "auto" : "none", touchAction: "none" }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-      >
-        <svg className="absolute inset-0 h-full w-full">
-          {/* Rooms */}
-          {showOverlay &&
-            data.rooms.map((r) => (
-              <g key={r.id}>
-                <rect
-                  x={r.x}
-                  y={r.y}
-                  width={r.w}
-                  height={r.h}
-                  fill={sel.kind === "room" && sel.id === r.id ? "rgba(120,200,255,0.10)" : "rgba(120,200,255,0.06)"}
-                  stroke={sel.kind === "room" && sel.id === r.id ? "rgba(120,200,255,0.95)" : "rgba(120,200,255,0.55)"}
-                  strokeWidth={sel.kind === "room" && sel.id === r.id ? 3 : 2}
-                  strokeDasharray="6 6"
-                />
-                <text x={r.x + 8} y={r.y + 18} fill="rgba(255,255,255,0.9)" fontFamily="monospace" fontSize={12}>
-                  {r.name}
-                </text>
+      {/* ✅ Overlay pinned to the *contained image rect* (matches Image objectFit:"contain") */}
+      {imgBox && imgBox.w > 0 && imgBox.h > 0 && (
+        <div
+          ref={overlayRef}
+          style={{
+            position: "fixed",
+            left: imgBox.left,
+            top: imgBox.top,
+            width: imgBox.w,
+            height: imgBox.h,
+            zIndex: 9997,
+            pointerEvents: showOverlay ? "auto" : "none",
+            touchAction: "none",
+          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+        >
+          <svg className="h-full w-full" viewBox={`0 0 ${bgNative.w} ${bgNative.h}`} preserveAspectRatio="none">
+            {/* Active (read-only) */}
+            {showOverlay && activeLighting && (
+              <g opacity={0.75}>
+                {showActiveRooms &&
+                  activeLighting.rooms.map((r) => (
+                    <g key={"active-room-" + r.id}>
+                      <rect
+                        x={r.x}
+                        y={r.y}
+                        width={r.w}
+                        height={r.h}
+                        fill="rgba(80,255,120,0.04)"
+                        stroke="rgba(80,255,120,0.35)"
+                        strokeWidth={2}
+                        strokeDasharray="6 4"
+                      />
+                      <text x={r.x + 8} y={r.y + 18} fill="rgba(200,255,220,0.8)" fontFamily="monospace" fontSize={12}>
+                        {r.name}
+                      </text>
+                    </g>
+                  ))}
+
+                {activeLighting.lights.map((l) => {
+                  const rr = l.bulbRadius ?? 10;
+                  const stroke = l.enabled ? "rgba(80,255,120,0.9)" : "rgba(160,160,160,0.7)";
+                  const fill = l.enabled ? "rgba(80,255,120,0.10)" : "rgba(160,160,160,0.08)";
+                  return (
+                    <g key={"active-light-" + l.id}>
+                      {showSpotTargets && l.type === "spot" && l.target && (
+                        <line
+                          x1={l.x}
+                          y1={l.y}
+                          x2={l.target.x}
+                          y2={l.target.y}
+                          stroke="rgba(80,255,120,0.6)"
+                          strokeWidth={2}
+                          strokeDasharray="6 5"
+                        />
+                      )}
+                      <circle cx={l.x} cy={l.y} r={rr} fill={fill} stroke={stroke} strokeWidth={2} strokeDasharray="6 4" />
+                      <circle cx={l.x} cy={l.y} r={3} fill={l.color} opacity={0.9} />
+                      <text x={l.x + rr + 10} y={l.y - rr - 6} fill="rgba(200,255,220,0.9)" fontFamily="monospace" fontSize={12}>
+                        {l.name}
+                      </text>
+                    </g>
+                  );
+                })}
               </g>
-            ))}
+            )}
 
-          {/* Draft room */}
-          {showOverlay && roomDraft && (
-            <g>
-              {(() => {
-                const x = Math.min(roomDraft.start.x, roomDraft.end.x);
-                const y = Math.min(roomDraft.start.y, roomDraft.end.y);
-                const w = Math.abs(roomDraft.end.x - roomDraft.start.x);
-                const h = Math.abs(roomDraft.end.y - roomDraft.start.y);
-                return (
-                  <>
-                    <rect
-                      x={x}
-                      y={y}
-                      width={w}
-                      height={h}
-                      fill="rgba(120,200,255,0.05)"
-                      stroke="rgba(120,200,255,0.9)"
-                      strokeWidth={2}
-                      strokeDasharray="4 4"
-                    />
-                    <text x={x + 8} y={y + 18} fill="rgba(255,255,255,0.9)" fontFamily="monospace" fontSize={12}>
-                      {roomDraft.name}
-                    </text>
-                  </>
-                );
-              })()}
-            </g>
-          )}
-
-          {/* Lights */}
-          {showOverlay &&
-            data.lights.map((l) => {
-              const selected = sel.kind === "light" && sel.id === l.id;
-              const r = l.bulbRadius ?? 10;
-              const stroke = selected ? "rgba(255,240,200,0.95)" : "rgba(255,240,200,0.55)";
-              const fill = l.enabled ? "rgba(255,210,140,0.25)" : "rgba(180,180,180,0.12)";
-              return (
-                <g key={l.id}>
-                  <circle cx={l.x} cy={l.y} r={r + 10} fill="transparent" stroke="transparent" />
-                  <circle cx={l.x} cy={l.y} r={r} fill={fill} stroke={stroke} strokeWidth={selected ? 3 : 2} />
-                  <circle cx={l.x} cy={l.y} r={3} fill={l.color} opacity={0.9} />
-                  <text x={l.x + r + 10} y={l.y - r - 6} fill="rgba(255,255,255,0.9)" fontFamily="monospace" fontSize={12}>
-                    {l.name}
-                  </text>
-                  <text x={l.x + r + 10} y={l.y - r + 10} fill="rgba(255,255,255,0.65)" fontFamily="monospace" fontSize={11}>
-                    {l.type} · I{l.intensity.toFixed(1)} · D{Math.round(l.distance)} · Z{Math.round(l.z)}
+            {/* Rooms */}
+            {showOverlay &&
+              data.rooms.map((r) => (
+                <g key={r.id}>
+                  <rect
+                    x={r.x}
+                    y={r.y}
+                    width={r.w}
+                    height={r.h}
+                    fill={sel.kind === "room" && sel.id === r.id ? "rgba(120,200,255,0.10)" : "rgba(120,200,255,0.06)"}
+                    stroke={sel.kind === "room" && sel.id === r.id ? "rgba(120,200,255,0.95)" : "rgba(120,200,255,0.55)"}
+                    strokeWidth={sel.kind === "room" && sel.id === r.id ? 3 : 2}
+                    strokeDasharray="6 6"
+                  />
+                  <text x={r.x + 8} y={r.y + 18} fill="rgba(255,255,255,0.9)" fontFamily="monospace" fontSize={12}>
+                    {r.name}
                   </text>
                 </g>
-              );
-            })}
-        </svg>
-      </div>
+              ))}
+
+            {/* Draft room */}
+            {showOverlay && roomDraft && (
+              <g>
+                {(() => {
+                  const x = Math.min(roomDraft.start.x, roomDraft.end.x);
+                  const y = Math.min(roomDraft.start.y, roomDraft.end.y);
+                  const w = Math.abs(roomDraft.end.x - roomDraft.start.x);
+                  const h = Math.abs(roomDraft.end.y - roomDraft.start.y);
+                  return (
+                    <>
+                      <rect x={x} y={y} width={w} height={h} fill="rgba(120,200,255,0.05)" stroke="rgba(120,200,255,0.9)" strokeWidth={2} strokeDasharray="4 4" />
+                      <text x={x + 8} y={y + 18} fill="rgba(255,255,255,0.9)" fontFamily="monospace" fontSize={12}>
+                        {roomDraft.name}
+                      </text>
+                    </>
+                  );
+                })()}
+              </g>
+            )}
+
+            {/* Lights */}
+            {showOverlay &&
+              data.lights.map((l) => {
+                const selected = sel.kind === "light" && sel.id === l.id;
+                const rr = l.bulbRadius ?? 10;
+                const stroke = selected ? "rgba(255,240,200,0.95)" : "rgba(255,240,200,0.55)";
+                const fill = l.enabled ? "rgba(255,210,140,0.25)" : "rgba(180,180,180,0.12)";
+                return (
+                  <g key={l.id}>
+                    {showSpotTargets && l.type === "spot" && l.target && (
+                      <line x1={l.x} y1={l.y} x2={l.target.x} y2={l.target.y} stroke="rgba(255,240,200,0.55)" strokeWidth={2} />
+                    )}
+                    <circle cx={l.x} cy={l.y} r={rr + 10} fill="transparent" stroke="transparent" />
+                    <circle cx={l.x} cy={l.y} r={rr} fill={fill} stroke={stroke} strokeWidth={selected ? 3 : 2} />
+                    <circle cx={l.x} cy={l.y} r={3} fill={l.color} opacity={0.9} />
+                    <text x={l.x + rr + 10} y={l.y - rr - 6} fill="rgba(255,255,255,0.9)" fontFamily="monospace" fontSize={12}>
+                      {l.name}
+                    </text>
+                    <text x={l.x + rr + 10} y={l.y - rr + 10} fill="rgba(255,255,255,0.65)" fontFamily="monospace" fontSize={11}>
+                      {l.type} · I{l.intensity.toFixed(1)} · D{Math.round(l.distance)} · Z{Math.round(l.z)}
+                    </text>
+                  </g>
+                );
+              })}
+          </svg>
+        </div>
+      )}
     </div>
   );
 }

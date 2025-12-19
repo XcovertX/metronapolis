@@ -83,12 +83,13 @@ export default function AptLivingroom() {
   }
 
   return (
-    <BaseScene
-      id="apt-livingroom"
-      title="Apartment – Living Room"
-      background="/rooms/apt-livingroom.jpg"
-      description={description}
-      options={options}
-    />
+  <BaseScene
+    id="apt-livingroom"
+    title="Apartment – Living Room"
+    background="/rooms/apt-livingroom.jpg"
+    bgNative={{ w: 736, h: 1470 }}   // ✅ set to the actual image size
+    description={description}
+    options={options}
+  />
   );
 }
