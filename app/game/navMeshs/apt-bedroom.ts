@@ -28,7 +28,32 @@ export const aptBedroomNavmesh: WalkCollisionData = {
   ],
   "colliders": [],
   "collisionPoints": [],
-  sceneChangeZones: []
+  "sceneChangeZones": [
+    {
+      "id": "scene_a332c1d082b7b8_19b38011f83",
+      "name": "apt-bedroom to apt-living",
+      "points": [
+        {
+          "x": 88,
+          "y": 592
+        },
+        {
+          "x": 512,
+          "y": 592
+        },
+        {
+          "x": 512,
+          "y": 624
+        },
+        {
+          "x": 88,
+          "y": 624
+        }
+      ],
+      "targetSceneId": "apt-living"
+    }
+  ]
 };
+
 
 
