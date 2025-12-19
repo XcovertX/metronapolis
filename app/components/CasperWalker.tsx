@@ -50,6 +50,12 @@ type CasperWalkerProps = {
   lamp?: Lamp;
   showLightMarkers?: boolean;
   zIndex?: number;
+
+  /** ✅ NEW: scales ONLY the sprite (not canvas/camera). 1 = native size */
+  spriteScale?: number;
+
+  /** ✅ OPTIONAL: if true, speed scales with spriteScale (keeps "feet speed" feeling similar) */
+  speedScalesWithSprite?: boolean;
 };
 
 /** ----- helpers ----- */
@@ -234,7 +240,13 @@ function SceneLighting({
 
         return (
           <React.Fragment key={l.id}>
-            <pointLight position={pos} color={color} intensity={l.intensity} distance={l.distance} decay={l.decay} />
+            <pointLight
+              position={pos}
+              color={color}
+              intensity={l.intensity}
+              distance={l.distance}
+              decay={l.decay}
+            />
             {showMarkers && (
               <mesh position={pos}>
                 <sphereGeometry args={[8, 16, 16]} />
@@ -261,6 +273,7 @@ function CasperSprite({
   standingFrameIndex,
   navWorld,
   setTargetRef,
+  spriteScale,
 }: {
   sheetSrc: string;
   normalSrc: string;
@@ -273,6 +286,8 @@ function CasperSprite({
   standingFrameIndex: number;
   navWorld: WalkCollisionData;
   setTargetRef: React.MutableRefObject<((p: Point) => void) | null>;
+  /** ✅ NEW */
+  spriteScale: number;
 }) {
   const [pos, setPos] = useState<Point>(startWorld);
   const [target, setTarget] = useState<Point | null>(null);
@@ -373,7 +388,9 @@ function CasperSprite({
 
     if (meshRef.current) {
       meshRef.current.position.set(pos.x, pos.y, 0);
-      meshRef.current.scale.set(facing, 1, 1);
+
+      // ✅ NEW: apply spriteScale without touching canvas/camera
+      meshRef.current.scale.set(facing * spriteScale, spriteScale, 1);
 
       diffuse.offset.x = frame / frameCount;
       normal.offset.x = frame / frameCount;
@@ -387,20 +404,18 @@ function CasperSprite({
   }, [frameW, frameH]);
 
   return (
-    <>
-      <mesh ref={meshRef} geometry={geom} raycast={null as any}>
-        <meshStandardMaterial
-          map={diffuse}
-          normalMap={normal}
-          transparent
-          roughness={0.85}
-          metalness={0.0}
-          emissive={"#000000"}
-          emissiveIntensity={0.0}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-    </>
+    <mesh ref={meshRef} geometry={geom} raycast={null as any}>
+      <meshStandardMaterial
+        map={diffuse}
+        normalMap={normal}
+        transparent
+        roughness={0.85}
+        metalness={0.0}
+        emissive={"#000000"}
+        emissiveIntensity={0.0}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
   );
 }
 
@@ -409,12 +424,18 @@ export default function CasperWalker(props: CasperWalkerProps) {
   const sheetSrc = props.sheetSrc ?? "/sprites/casper-walk.png";
   const normalSrc = props.normalSrc ?? "/sprites/casper-walk_n.png";
 
-  const speedPxPerSec = props.speedPxPerSec ?? 260;
+  const baseSpeedPxPerSec = props.speedPxPerSec ?? 260;
   const walkFps = props.walkFps ?? 12;
   const frameCount = props.frameCount ?? 8;
   const frameW = props.frameW ?? 256;
   const frameH = props.frameH ?? 256;
   const standingFrameIndex = props.standingFrameIndex ?? 7;
+
+  const spriteScale = props.spriteScale ?? 1;
+
+  // ✅ Optional: scale speed with sprite so motion "feels" consistent
+  const speedPxPerSec =
+    (props.speedScalesWithSprite ?? false) ? baseSpeedPxPerSec * spriteScale : baseSpeedPxPerSec;
 
   const lampImg: Lamp = props.lamp ?? {
     x: Math.round(props.bgNative.w * 0.35),
@@ -451,7 +472,6 @@ export default function CasperWalker(props: CasperWalkerProps) {
     const ro = new ResizeObserver(read);
     ro.observe(el);
 
-    // one extra frame after layout settles (fixes “aspectRatio just applied” cases)
     const raf = requestAnimationFrame(read);
 
     return () => {
@@ -460,7 +480,6 @@ export default function CasperWalker(props: CasperWalkerProps) {
     };
   }, [props.containerRef]);
 
-  
   useEffect(() => {
     const el = props.containerRef.current;
     if (!el) return;
@@ -481,9 +500,9 @@ export default function CasperWalker(props: CasperWalkerProps) {
   const ready = stageSize.w > 2 && stageSize.h > 2;
   if (!ready) return null;
 
-  // ✅ zoom computed from REAL stage pixels (not R3F's first-tick size)
+  // ✅ zoom computed from REAL stage pixels
   const zoom = Math.min(stageSize.w / props.bgNative.w, stageSize.h / props.bgNative.h);
-  console.log("CasperWalker: stageSize=", stageSize, " zoom=", zoom, );
+  console.log("CasperWalker: stageSize=", stageSize, " zoom=", zoom);
 
   return (
     <div
@@ -498,8 +517,7 @@ export default function CasperWalker(props: CasperWalkerProps) {
       <Canvas
         orthographic
         gl={{ antialias: false, alpha: true }}
-        // ✅ force correct initial sizing (prevents the first-frame distortion)
-        style={{ width: stageSize.w, height: stageSize.h}}
+        style={{ width: stageSize.w, height: stageSize.h }}
       >
         <OrthoBgCamera stageSize={stageSize} zoom={zoom} />
 
@@ -518,6 +536,7 @@ export default function CasperWalker(props: CasperWalkerProps) {
           frameW={frameW}
           frameH={frameH}
           standingFrameIndex={standingFrameIndex}
+          spriteScale={spriteScale}
         />
       </Canvas>
     </div>
@@ -539,6 +558,7 @@ function Scene({
   frameW,
   frameH,
   standingFrameIndex,
+  spriteScale,
 }: {
   bgNative: { w: number; h: number };
   sheetSrc: string;
@@ -554,6 +574,7 @@ function Scene({
   frameW: number;
   frameH: number;
   standingFrameIndex: number;
+  spriteScale: number;
 }) {
   const setTargetRef = useRef<((p: Point) => void) | null>(null);
 
@@ -635,6 +656,7 @@ function Scene({
         standingFrameIndex={standingFrameIndex}
         navWorld={navWorld}
         setTargetRef={setTargetRef}
+        spriteScale={spriteScale}
       />
     </>
   );
