@@ -33,6 +33,9 @@ export type LightDef = {
 
   enabled: boolean;
   roomId?: string;
+
+  showBulb?: boolean;
+  bulbRadius?: number;
 };
 
 export type LightingData = {

@@ -69,6 +69,12 @@ type Props = {
 
   showActiveRooms?: boolean;
   showSpotTargets?: boolean;
+
+  /** ✅ optional: export const name used for Copy TS */
+  exportConstName?: string;
+
+  /** ✅ optional: import path used in Copy TS header */
+  exportImportPath?: string; // default "./lightingTypes"
 };
 
 const DEFAULT: LightingData = {
@@ -127,6 +133,80 @@ function computeContainRect(stage: Box, native: { w: number; h: number }): Box {
   }
 }
 
+function sanitizeIdentifier(name: string) {
+  const cleaned = name.trim().replace(/[^a-zA-Z0-9_$]/g, "_");
+  if (!cleaned) return "lightingData";
+  if (/^[0-9]/.test(cleaned)) return "_" + cleaned;
+  return cleaned;
+}
+
+function stripUndefined<T extends Record<string, any>>(obj: T): T {
+  const out: any = {};
+  for (const k of Object.keys(obj)) {
+    const v = (obj as any)[k];
+    if (v === undefined) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+function toTsModule(
+  data: LightingData,
+  exportConstName: string,
+  importPath: string
+) {
+  const name = sanitizeIdentifier(exportConstName);
+
+  // keep the payload clean: remove undefined optionals
+  const rooms = data.rooms.map((r) => stripUndefined(r));
+  const lights = data.lights.map((l) =>
+    stripUndefined({
+      id: l.id,
+      name: l.name,
+      type: l.type,
+      x: Math.round(l.x),
+      y: Math.round(l.y),
+      z: Math.round(l.z),
+      color: l.color,
+      intensity: Number(l.intensity),
+      distance: Number(l.distance),
+      decay: Number(l.decay),
+      angleDeg: l.angleDeg,
+      penumbra: l.penumbra,
+      target: l.target,
+      roomId: l.roomId,
+      enabled: l.enabled,
+      showBulb: l.showBulb,
+      bulbRadius: l.bulbRadius,
+    })
+  );
+
+  const payload: LightingData = {
+    version: 1,
+    ambient: {
+      color: data.ambient.color,
+      intensity: Number(data.ambient.intensity),
+      enabled: !!data.ambient.enabled,
+    },
+    rooms: rooms as any,
+    lights: lights as any,
+  };
+
+  const objLiteral = JSON.stringify(payload, null, 2)
+    // remove quotes from safe identifier keys
+    .replace(/"([a-zA-Z_$][\w$]*)":/g, "$1:")
+    // keep as TS-friendly single quotes? (optional) - leaving as double is fine
+    ;
+
+  return [
+    `import type { LightingData } from "${importPath}";`,
+    ``,
+    `export const ${name}: LightingData = ${objLiteral};`,
+    ``,
+  ].join("\n");
+}
+
+
 export default function LightingEditor({
   containerRef,
   bgNative,
@@ -138,6 +218,8 @@ export default function LightingEditor({
   activeLighting,
   showActiveRooms = false,
   showSpotTargets = true,
+  exportConstName,
+  exportImportPath = "./lightingTypes",
 }: Props) {
   const [data, setData] = useState<LightingData>(initial ?? DEFAULT);
   const [showOverlay, setShowOverlay] = useState(!startHidden);
@@ -150,6 +232,9 @@ export default function LightingEditor({
   // stage rect + derived image rect (contain)
   const [stageBox, setStageBox] = useState<Box | null>(null);
   const [imgBox, setImgBox] = useState<Box | null>(null);
+  const [exportName, setExportName] = useState<string>(
+    exportConstName ?? "aptBedroomLighting"
+  );
 
   const overlayRef = useRef<HTMLDivElement | null>(null);
 
@@ -158,6 +243,10 @@ export default function LightingEditor({
     | { kind: "light"; id: string; dx: number; dy: number }
     | { kind: "room"; id: string; dx: number; dy: number }
   >(null);
+
+  useEffect(() => {
+    if (exportConstName) setExportName(exportConstName);
+  }, [exportConstName]);
 
   useEffect(() => {
     if (initial) setData(initial);
@@ -549,8 +638,8 @@ export default function LightingEditor({
                 <input
                   type="range"
                   min={0}
-                  max={50}
-                  step={0.05}
+                  max={500}
+                  step={1}
                   value={selectedLight.intensity}
                   onChange={(e) => updateLight(selectedLight.id, { intensity: Number(e.target.value) })}
                 />
@@ -599,23 +688,67 @@ export default function LightingEditor({
           )}
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <button
-            onClick={() => navigator.clipboard.writeText(jsonText)}
-            className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
-          >
-            Copy JSON
-          </button>
-          <button
-            onClick={() => {
-              const text = prompt("Paste JSON to import:", jsonText);
-              if (text != null) importJson(text);
-            }}
-            className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
-          >
-            Import JSON
-          </button>
+        <div className="mt-3 rounded-lg bg-white/10 p-2">
+          <div className="text-xs font-semibold">Export</div>
+
+          <label className="mt-2 flex flex-col gap-1 text-xs">
+            <span className="opacity-80">export const name</span>
+            <input
+              value={exportName}
+              onChange={(e) => setExportName(e.target.value)}
+              className="rounded-md bg-black/40 px-2 py-1 outline-none"
+              placeholder="aptBedroomLighting"
+            />
+          </label>
+
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                const ts = toTsModule(data, exportName, exportImportPath);
+                navigator.clipboard.writeText(ts);
+              }}
+              className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+            >
+              Copy TS
+            </button>
+
+            <button
+              onClick={() => navigator.clipboard.writeText(jsonText)}
+              className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+            >
+              Copy JSON
+            </button>
+          </div>
+
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                const text = prompt("Paste JSON to import:", jsonText);
+                if (text != null) importJson(text);
+              }}
+              className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+            >
+              Import JSON
+            </button>
+
+            <button
+              onClick={() => {
+                const ts = toTsModule(data, exportName, exportImportPath);
+                const text = prompt("Paste TS module here to import (expects `export const ... = { ... }`):");
+                if (!text) return;
+                // very lightweight extraction: find first "{" after "=" and parse as JSON-ish
+                // (optional; you can delete this button if you don't want TS import)
+                alert("TS import not implemented in this drop-in. Use Import JSON instead.");
+              }}
+              className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20 opacity-40"
+              disabled
+              title="Not implemented (use Import JSON)"
+            >
+              Import TS (later)
+            </button>
+          </div>
         </div>
+
 
         <div className="mt-2 text-[11px] opacity-70">
           Hotkeys: <b>V</b>=toggle overlay, <b>L</b>=place light, <b>R</b>=draw room, <b>Del</b>=delete
