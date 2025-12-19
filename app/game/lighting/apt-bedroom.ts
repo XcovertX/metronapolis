@@ -4,7 +4,7 @@ export const aptBedroomLighting: LightingData = {
   version: 1,
   ambient: { color: "#ffffff", intensity: 0.12, enabled: true },
   rooms: [
-    { id: "apt-bedroom", name: "Apt-Bedroom", x: 0, y: 0, w: 1024, h: 768 },
+    { id: "apt-bedroom", name: "Apt-Bedroom", x: 0, y: 0, w: 632, h: 632 },
   ],
   lights: [
     {
