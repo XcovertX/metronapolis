@@ -1,15 +1,16 @@
+// app/components/scenes/BaseScene.tsx
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useRef, useState } from "react";
-import CasperWalker from "../CasperWalker";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import SceneView, { imgPxToWorld } from "../SceneView";
+import Casper from "../Casper";
 import { useOptions, PlayerOption } from "../OptionsContext";
 import { NAVMESH_BY_SCENE } from "@/app/game/navMeshs";
 import { LIGHTING_BY_SCENE } from "@/app/game/lighting";
 import NavMeshEditor from "../NavMeshEditor";
 import LightingEditor from "../LightingEditor";
 import { useLoopState } from "../LoopStateContext";
-import type { WalkCollisionData, SceneChangeZone } from "@/app/game/navMeshs/types";
 
 type BaseSceneProps = {
   id: string;
@@ -19,7 +20,7 @@ type BaseSceneProps = {
   options: PlayerOption[];
   bgNative: { w: number; h: number };
   spriteScale?: number;
-  startPosition?: { x: number; y: number }
+  startPosition?: { x: number; y: number }; // IMAGE px (top-left)
 };
 
 export default function BaseScene({
@@ -30,9 +31,10 @@ export default function BaseScene({
   options,
   bgNative = { w: 1920, h: 1080 },
   spriteScale = 1,
-  startPosition = { x: Math.round(bgNative.w * 0.5), y: Math.round(bgNative.h * 0.5) }
+  startPosition = { x: Math.round(bgNative.w * 0.5), y: Math.round(bgNative.h * 0.5) },
 }: BaseSceneProps) {
   const { setOptions, clearOptions } = useOptions();
+  const { goToScene } = useLoopState();
 
   const navmesh = NAVMESH_BY_SCENE[id];
   const lighting = LIGHTING_BY_SCENE[id];
@@ -40,9 +42,8 @@ export default function BaseScene({
   const [showNavMeshEditor, setShowNavMeshEditor] = useState(false);
   const [showLightingEditor, setShowLightingEditor] = useState(false);
 
+  // Stage is still the “true rect” used by the background Image and the editors.
   const stageRef = useRef<HTMLDivElement | null>(null);
-
-  const { goToScene } = useLoopState();
 
   useEffect(() => {
     setOptions(options);
@@ -64,22 +65,21 @@ export default function BaseScene({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Casper wants WORLD coords; your BaseScene startPosition is IMAGE px.
+  const startWorld = useMemo(() => imgPxToWorld(startPosition, bgNative), [startPosition, bgNative]);
+
   return (
     <>
       {/* Editors are global overlays; they use stageRef for correct mapping */}
       {(showNavMeshEditor || showLightingEditor) && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
-          {showNavMeshEditor && (
-            <NavMeshEditor
+          {showNavMeshEditor && navmesh && (
+            <NavMeshEditor containerRef={stageRef} bgNative={bgNative} activeNavmesh={navmesh} />
+          )}
+          {showLightingEditor && lighting && (
+            <LightingEditor
               containerRef={stageRef}
               bgNative={bgNative}
-              activeNavmesh={navmesh}
-            />
-          )}
-          {showLightingEditor && (
-            <LightingEditor 
-              containerRef={stageRef} 
-              bgNative={bgNative} 
               activeLighting={lighting}
               initial={lighting}
               onChange={(d) => console.log("lighting draft", d)}
@@ -125,19 +125,30 @@ export default function BaseScene({
             />
           )}
 
-          {/* ✅ CasperWalker MUST be inside the stage so it shares the exact rect */}
+          {/* ✅ New structure: SceneView owns Canvas/camera/input; Casper is just an entity */}
           {navmesh && (
-            <CasperWalker
+            <SceneView
               containerRef={stageRef}
               bgNative={bgNative}
               navmesh={navmesh}
               lightingData={lighting}
-              start={startPosition}
-              spriteScale={spriteScale}
-              onSceneChange={(targetSceneId, zoneId) => {
-                goToScene(targetSceneId);
-              }}
-            />
+              zIndex={30}
+              // Optional: if you want to intercept clicks for interaction,
+              // you can handle it here (then decide whether to move)
+              // onWorldClick={(p) => console.log("world click", p)}
+            >
+              
+              <Casper
+                startWorld={startWorld}
+                spriteScale={spriteScale}
+                speedScalesWithSprite
+                onSceneChange={(targetSceneId, zoneId) => {
+                  goToScene(targetSceneId);
+                }}
+              />
+
+              {/* Later: <Npc .../> <Prop .../> etc */}
+            </SceneView>
           )}
         </div>
 
