@@ -6,7 +6,6 @@ import CasperWalker from "../CasperWalker";
 import { useOptions, PlayerOption } from "../OptionsContext";
 import { NAVMESH_BY_SCENE } from "@/app/game/navMeshs";
 import { LIGHTING_BY_SCENE } from "@/app/game/lighting";
-import LightingDebugOverlay from "../LightingDebugOverlay";
 import NavMeshEditor from "../NavMeshEditor";
 import LightingEditor from "../LightingEditor";
 
@@ -68,8 +67,6 @@ export default function BaseScene({
 
   return (
     <>
-      {showLightingDebug && <LightingDebugOverlay lightingData={lighting} />}
-
       {/* Editors are global overlays; they use stageRef for correct mapping */}
       {(showNavMeshEditor || showLightingEditor) && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
