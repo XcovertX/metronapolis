@@ -17,6 +17,7 @@ type BaseSceneProps = {
   background?: string;
   options: PlayerOption[];
   bgNative: { w: number; h: number };
+  spriteScale?: number;
 };
 
 export default function BaseScene({
@@ -26,6 +27,7 @@ export default function BaseScene({
   background,
   options,
   bgNative,
+  spriteScale = 1,
 }: BaseSceneProps) {
   const { setOptions, clearOptions } = useOptions();
 
@@ -136,6 +138,7 @@ export default function BaseScene({
                 x: Math.round(bgNative.w * 0.5),
                 y: Math.round(bgNative.h * 0.95),
               }}
+              spriteScale={spriteScale}
             />
           )}
         </div>

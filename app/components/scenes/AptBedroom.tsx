@@ -74,6 +74,7 @@ export default function AptBedroom() {
     bgNative={{ w: 632, h: 632 }}   // ✅ set to the actual image size
     description={description}
     options={options}
+    spriteScale={1.1}
   />
   );
 }

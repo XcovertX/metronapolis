@@ -90,6 +90,7 @@ export default function AptLivingroom() {
     bgNative={{ w: 736, h: 1470 }}   // ✅ set to the actual image size
     description={description}
     options={options}
+    spriteScale={1.4}
   />
   );
 }
