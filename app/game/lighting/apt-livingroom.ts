@@ -15,31 +15,19 @@ export const aptLivingroomLighting: LightingData = {
   ],
   "lights": [
     {
-      "id": "lamp1",
-      "name": "Warm Lamp",
+      "id": "light_f1f75ea9c6aec8_19b37c51be9",
+      "name": "Light 3",
       "type": "point",
-      "x": 1050,
-      "y": 550,
-      "z": 100,
-      "color": "#4cd5fb",
-      "intensity": 100,
-      "distance": 500,
-      "decay": 1,
+      "x": 552,
+      "y": 712,
+      "z": 95,
+      "color": "#48fef2",
+      "intensity": 500,
+      "distance": 4000,
+      "decay": 1.5,
       "enabled": true,
-      "roomId": "apt-livingroom"
     },
-    {
-      "id": "light_7935018d027a08_19b37925802",
-      "name": "Light 2",
-      "type": "point",
-      "x": 448,
-      "y": 1240,
-      "z": 260,
-      "color": "#ffd28a",
-      "intensity": 50,
-      "distance": 900,
-      "decay": 0.3,
-      "enabled": true,
-    }
+
   ]
 };
+
