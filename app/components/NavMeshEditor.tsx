@@ -443,7 +443,7 @@ export default function NavMeshEditor({
         if (draft.length > 0) undoDraft();
         else deleteSelection();
       }
-      if (e.key.toLowerCase() === "v") setShowOverlay((s) => !s);
+      if (e.key.toLowerCase() === "v" && e.ctrlKey) setShowOverlay((s) => !s);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -495,9 +495,9 @@ export default function NavMeshEditor({
           <button
             onClick={() => setShowOverlay((s) => !s)}
             className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
-            title="Toggle overlay (V)"
+            title="Toggle overlay (ctrl-V)"
           >
-            {showOverlay ? "Hide Lines (V)" : "Show Lines (V)"}
+            {showOverlay ? "Hide Lines (ctrl-V)" : "Show Lines (ctrl-V)"}
           </button>
         </div>
 

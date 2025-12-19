@@ -375,9 +375,9 @@ export default function LightingEditor({
         setMode("select");
       }
       if ((e.key === "Backspace" || e.key === "Delete") && showOverlay) deleteSelection();
-      if (e.key.toLowerCase() === "v") setShowOverlay((s) => !s);
-      if (e.key.toLowerCase() === "l") setMode("place-light");
-      if (e.key.toLowerCase() === "r") setMode("draw-room");
+      if (e.key.toLowerCase() === "v" && e.ctrlKey) setShowOverlay((s) => !s);
+      if (e.key.toLowerCase() === "l" && e.ctrlKey) setMode("place-light");
+      if (e.key.toLowerCase() === "r" && e.ctrlKey) setMode("draw-room");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -398,9 +398,9 @@ export default function LightingEditor({
           <button
             onClick={() => setShowOverlay((s) => !s)}
             className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
-            title="Toggle overlay (V)"
+            title="Toggle overlay (ctrl-V)"
           >
-            {showOverlay ? "Hide (V)" : "Show (V)"}
+            {showOverlay ? "Hide (ctrl-V)" : "Show (ctrl-V)"}
           </button>
         </div>
 
@@ -420,7 +420,7 @@ export default function LightingEditor({
             }`}
             title="Hotkey: L"
           >
-            Place Light (L)
+            Place Light (ctrl-L)
           </button>
           <button
             onClick={() => setMode("draw-room")}
@@ -429,7 +429,7 @@ export default function LightingEditor({
             }`}
             title="Hotkey: R"
           >
-            Draw Room (R)
+            Draw Room (ctrl-R)
           </button>
         </div>
 
