@@ -1,10 +1,12 @@
+// app/components/NavMeshEditor.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { WalkCollisionData, Polygon, SceneChangeZone, Pt } from "@/app/game/navMeshs/types";
-import { SceneId } from "../game/sceneGraph";
+import type { SceneId } from "../game/sceneGraph";
 
 type Mode = "select" | "walkable" | "collider" | "point" | "scene";
+type ExportStyle = "json" | "ts";
 
 type Props = {
   /** ✅ REQUIRED: the same stage div that contains your background Image */
@@ -30,6 +32,10 @@ type Props = {
 
   /** optional overlay of existing mesh (native px) */
   activeNavmesh?: WalkCollisionData;
+
+  /** ✅ NEW: exporter controls (optional) */
+  exportConstName?: string; // default "aptBedroomNavmesh"
+  exportImportPath?: string; // default "./types"
 };
 
 const DEFAULT: WalkCollisionData = {
@@ -71,8 +77,7 @@ function pointInPoly(pt: Pt, poly: Pt[]) {
       yj = poly[j].y;
 
     const intersect =
-      yi > pt.y !== yj > pt.y &&
-      pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi + 1e-12) + xi;
+      yi > pt.y !== yj > pt.y && pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi + 1e-12) + xi;
 
     if (intersect) inside = !inside;
   }
@@ -89,6 +94,39 @@ function getContainRect(stageW: number, stageH: number, imgW: number, imgH: numb
   return { offX, offY, scale, drawW, drawH };
 }
 
+/** ---------- Export helpers (TS module output) ---------- */
+
+function sanitizeIdentifier(name: string) {
+  const trimmed = (name || "").trim() || "navmesh";
+  let s = trimmed.replace(/[^A-Za-z0-9_$]/g, "_");
+  if (!/^[A-Za-z_$]/.test(s)) s = "_" + s;
+  return s;
+}
+
+function jsonToTsObjectLiteral(jsonPretty: string) {
+  // Only unquote keys that are valid JS identifiers: "walkables": -> walkables:
+  return jsonPretty.replace(/"([A-Za-z_$][A-Za-z0-9_$]*)":/g, "$1:");
+}
+
+function toTsModuleNavmesh(
+  data: WalkCollisionData,
+  exportConstName: string,
+  importPath: string,
+  style: ExportStyle
+) {
+  const name = sanitizeIdentifier(exportConstName);
+  const jsonPretty = JSON.stringify(data, null, 2);
+  const body = style === "ts" ? jsonToTsObjectLiteral(jsonPretty) : jsonPretty;
+
+  return [
+    `import type { WalkCollisionData } from "${importPath}";`,
+    ``,
+    `export const ${name}: WalkCollisionData = ${body};`,
+    ``,
+  ].join("\n");
+}
+
+/** ---------- Selection ---------- */
 type Selection =
   | { kind: "none" }
   | { kind: "walkable"; polyId: string; vertexIndex?: number }
@@ -105,6 +143,8 @@ export default function NavMeshEditor({
   snapPx = 8,
   clampToStage = true,
   activeNavmesh,
+  exportConstName = "aptBedroomNavmesh",
+  exportImportPath = "./types",
 }: Props) {
   // ✅ Back-compat: if initial lacks sceneChangeZones, add it.
   const [data, setData] = useState<WalkCollisionData>(() => {
@@ -114,6 +154,14 @@ export default function NavMeshEditor({
       sceneChangeZones: (src as any).sceneChangeZones ?? [],
     };
   });
+
+  useEffect(() => {
+    if (!initial) return;
+    setData({
+      ...initial,
+      sceneChangeZones: (initial as any).sceneChangeZones ?? [],
+    });
+  }, [initial]);
 
   const [showOverlay, setShowOverlay] = useState(!startHidden);
   const [mode, setMode] = useState<Mode>("walkable");
@@ -130,12 +178,14 @@ export default function NavMeshEditor({
     | { kind: "point"; pointId: string; offset: Pt }
   >(null);
 
-  const [stageRect, setStageRect] = useState<{
-    left: number;
-    top: number;
-    w: number;
-    h: number;
-  }>({ left: 0, top: 0, w: 0, h: 0 });
+  const [stageRect, setStageRect] = useState<{ left: number; top: number; w: number; h: number }>({
+    left: 0,
+    top: 0,
+    w: 0,
+    h: 0,
+  });
+
+  const [exportStyle, setExportStyle] = useState<ExportStyle>("ts");
 
   useEffect(() => {
     const tick = () => {
@@ -230,10 +280,7 @@ export default function NavMeshEditor({
         return { ...d, colliders: d.colliders.map((p) => (p.id === sel.polyId ? { ...p, name } : p)) };
       }
       if (sel.kind === "scene") {
-        return {
-          ...d,
-          sceneChangeZones: d.sceneChangeZones.map((z) => (z.id === sel.zoneId ? { ...z, name } : z)),
-        };
+        return { ...d, sceneChangeZones: d.sceneChangeZones.map((z) => (z.id === sel.zoneId ? { ...z, name } : z)) };
       }
       if (sel.kind === "point") {
         return {
@@ -257,8 +304,10 @@ export default function NavMeshEditor({
     setData((d) => {
       if (sel.kind === "walkable") return { ...d, walkables: d.walkables.filter((p) => p.id !== sel.polyId) };
       if (sel.kind === "collider") return { ...d, colliders: d.colliders.filter((p) => p.id !== sel.polyId) };
-      if (sel.kind === "scene") return { ...d, sceneChangeZones: d.sceneChangeZones.filter((z) => z.id !== sel.zoneId) };
-      if (sel.kind === "point") return { ...d, collisionPoints: d.collisionPoints.filter((p) => p.id !== sel.pointId) };
+      if (sel.kind === "scene")
+        return { ...d, sceneChangeZones: d.sceneChangeZones.filter((z) => z.id !== sel.zoneId) };
+      if (sel.kind === "point")
+        return { ...d, collisionPoints: d.collisionPoints.filter((p) => p.id !== sel.pointId) };
       return d;
     });
     setSel({ kind: "none" });
@@ -326,8 +375,7 @@ export default function NavMeshEditor({
         draggingRef.current = { kind: "scene", zoneId: hit.zoneId, vertexIndex: hit.vertexIndex };
       } else if (hit.kind === "point") {
         const cp = data.collisionPoints.find((x) => x.id === hit.pointId);
-        if (cp)
-          draggingRef.current = { kind: "point", pointId: cp.id, offset: { x: cp.p.x - p.x, y: cp.p.y - p.y } };
+        if (cp) draggingRef.current = { kind: "point", pointId: cp.id, offset: { x: cp.p.x - p.x, y: cp.p.y - p.y } };
       } else {
         draggingRef.current = null;
       }
@@ -359,15 +407,10 @@ export default function NavMeshEditor({
     const p = clampToStage ? { x: clamp(p0.x, 0, bgNative.w), y: clamp(p0.y, 0, bgNative.h) } : p0;
 
     const drag = draggingRef.current;
-    if (drag.kind === "walkable") {
-      updatePolyVertex("walkables", drag.polyId, drag.vertexIndex, p);
-    } else if (drag.kind === "collider") {
-      updatePolyVertex("colliders", drag.polyId, drag.vertexIndex, p);
-    } else if (drag.kind === "scene") {
-      updateZoneVertex(drag.zoneId, drag.vertexIndex, p);
-    } else if (drag.kind === "point") {
-      updatePoint(drag.pointId, { x: p.x + drag.offset.x, y: p.y + drag.offset.y });
-    }
+    if (drag.kind === "walkable") updatePolyVertex("walkables", drag.polyId, drag.vertexIndex, p);
+    else if (drag.kind === "collider") updatePolyVertex("colliders", drag.polyId, drag.vertexIndex, p);
+    else if (drag.kind === "scene") updateZoneVertex(drag.zoneId, drag.vertexIndex, p);
+    else if (drag.kind === "point") updatePoint(drag.pointId, { x: p.x + drag.offset.x, y: p.y + drag.offset.y });
   };
 
   const onPointerUp = () => {
@@ -388,9 +431,7 @@ export default function NavMeshEditor({
       const poly: Polygon = { id, name, points: draft };
 
       setData((d) =>
-        mode === "walkable"
-          ? { ...d, walkables: [...d.walkables, poly] }
-          : { ...d, colliders: [...d.colliders, poly] }
+        mode === "walkable" ? { ...d, walkables: [...d.walkables, poly] } : { ...d, colliders: [...d.colliders, poly] }
       );
 
       setDraft([]);
@@ -406,7 +447,7 @@ export default function NavMeshEditor({
         id,
         name,
         points: draft,
-        targetSceneId: "scene:unknown",
+        targetSceneId: "scene:unknown" as SceneId,
       };
 
       setData((d) => ({ ...d, sceneChangeZones: [...d.sceneChangeZones, zone] }));
@@ -467,6 +508,11 @@ export default function NavMeshEditor({
     }
   };
 
+  const tsModuleText = useMemo(
+    () => toTsModuleNavmesh(data, exportConstName, exportImportPath, exportStyle),
+    [data, exportConstName, exportImportPath, exportStyle]
+  );
+
   // ✅ Render transform: native -> stage contained image rect
   const svgTransform = useMemo(
     () => `translate(${contain.offX} ${contain.offY}) scale(${contain.scale})`,
@@ -483,7 +529,7 @@ export default function NavMeshEditor({
 
   const selectedTargetSceneId = useMemo(() => {
     if (sel.kind !== "scene") return "";
-    return data.sceneChangeZones.find((z) => z.id === sel.zoneId)?.targetSceneId ?? "";
+    return (data.sceneChangeZones.find((z) => z.id === sel.zoneId)?.targetSceneId ?? "") as string;
   }, [sel, data]);
 
   return (
@@ -568,27 +614,65 @@ export default function NavMeshEditor({
         <div className="mt-2 flex items-center justify-between text-xs opacity-80">
           <div>Snap: {snapPx}px (native)</div>
           <div>
-            Walkables: {data.walkables.length} · Colliders: {data.colliders.length} ·
-            Zones: {data.sceneChangeZones.length} · Points: {data.collisionPoints.length}
+            Walkables: {data.walkables.length} · Colliders: {data.colliders.length} · Zones:{" "}
+            {data.sceneChangeZones.length} · Points: {data.collisionPoints.length}
           </div>
         </div>
 
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <button
-            onClick={() => navigator.clipboard.writeText(jsonText)}
-            className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
-          >
-            Copy JSON
-          </button>
-          <button
-            onClick={() => {
-              const text = prompt("Paste JSON to import:", jsonText);
-              if (text != null) importJson(text);
-            }}
-            className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
-          >
-            Import JSON
-          </button>
+        {/* Export panel */}
+        <div className="mt-3 rounded-lg bg-white/10 p-2">
+          <div className="text-xs font-semibold">Export</div>
+
+          <label className="mt-2 block text-[11px] opacity-80">export style</label>
+          <div className="mt-1 flex gap-2">
+            <button
+              onClick={() => setExportStyle("ts")}
+              className={[
+                "rounded-md px-2 py-1 text-xs",
+                exportStyle === "ts" ? "bg-white/25" : "bg-white/10 hover:bg-white/20",
+              ].join(" ")}
+            >
+              TS object
+            </button>
+            <button
+              onClick={() => setExportStyle("json")}
+              className={[
+                "rounded-md px-2 py-1 text-xs",
+                exportStyle === "json" ? "bg-white/25" : "bg-white/10 hover:bg-white/20",
+              ].join(" ")}
+            >
+              JSON
+            </button>
+          </div>
+
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => navigator.clipboard.writeText(tsModuleText)}
+              className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+              title="Copies an import + export const module"
+            >
+              Copy TS Module
+            </button>
+            <button
+              onClick={() => navigator.clipboard.writeText(jsonText)}
+              className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+              title="Copies raw JSON only"
+            >
+              Copy JSON
+            </button>
+          </div>
+
+          <div className="mt-2">
+            <button
+              onClick={() => {
+                const text = prompt("Paste JSON to import:", jsonText);
+                if (text != null) importJson(text);
+              }}
+              className="w-full rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+            >
+              Import JSON
+            </button>
+          </div>
         </div>
 
         {sel.kind !== "none" && (
@@ -605,7 +689,10 @@ export default function NavMeshEditor({
                   : `Point ${sel.pointId.slice(0, 6)}`}
                 {"vertexIndex" in sel && (sel as any).vertexIndex != null ? ` (v${(sel as any).vertexIndex})` : ""}
               </div>
-              <button onClick={deleteSelection} className="rounded-md bg-red-500/20 px-2 py-1 hover:bg-red-500/30">
+              <button
+                onClick={deleteSelection}
+                className="rounded-md bg-red-500/20 px-2 py-1 hover:bg-red-500/30"
+              >
                 Delete
               </button>
             </div>
@@ -624,11 +711,12 @@ export default function NavMeshEditor({
                   <input
                     value={selectedTargetSceneId}
                     onChange={(e) => updateSelectedTargetSceneId(e.target.value as SceneId)}
-                    placeholder='e.g. "apartment:lobby"'
+                    placeholder='e.g. "apt-living"'
                     className="w-full rounded-md bg-black/40 px-2 py-1 text-xs outline-none"
                   />
                   <div className="text-[11px] opacity-70">
-                    Runtime: if Casper is inside this polygon → trigger scene change to <b>{selectedTargetSceneId || "(unset)"}</b>.
+                    Runtime: if Casper is inside this polygon → trigger scene change to{" "}
+                    <b>{selectedTargetSceneId || "(unset)"}</b>.
                   </div>
                 </>
               )}
@@ -648,7 +736,8 @@ export default function NavMeshEditor({
             Stage: {Math.round(stageRect.w)}×{Math.round(stageRect.h)}
           </div>
           <div>
-            Contain: off({Math.round(contain.offX)},{Math.round(contain.offY)}) · scale {contain.scale.toFixed(3)}
+            Contain: off({Math.round(contain.offX)},{Math.round(contain.offY)}) · scale{" "}
+            {contain.scale.toFixed(3)}
           </div>
         </div>
       </div>
@@ -671,10 +760,22 @@ export default function NavMeshEditor({
             {activeNavmesh && (
               <g>
                 {activeNavmesh.walkables.map((poly) => (
-                  <PolySvg key={"active-walk-" + poly.id} poly={poly} kind="walkable" selected={false} overlayStyle="active" />
+                  <PolySvg
+                    key={"active-walk-" + poly.id}
+                    poly={poly}
+                    kind="walkable"
+                    selected={false}
+                    overlayStyle="active"
+                  />
                 ))}
                 {activeNavmesh.colliders.map((poly) => (
-                  <PolySvg key={"active-col-" + poly.id} poly={poly} kind="collider" selected={false} overlayStyle="active" />
+                  <PolySvg
+                    key={"active-col-" + poly.id}
+                    poly={poly}
+                    kind="collider"
+                    selected={false}
+                    overlayStyle="active"
+                  />
                 ))}
                 {(activeNavmesh as any).sceneChangeZones?.map((z: SceneChangeZone) => (
                   <SceneZoneSvg key={"active-scene-" + z.id} zone={z} selected={false} overlayStyle="active" />
@@ -695,12 +796,22 @@ export default function NavMeshEditor({
 
             {showOverlay &&
               data.walkables.map((poly) => (
-                <PolySvg key={poly.id} poly={poly} kind="walkable" selected={sel.kind === "walkable" && sel.polyId === poly.id} />
+                <PolySvg
+                  key={poly.id}
+                  poly={poly}
+                  kind="walkable"
+                  selected={sel.kind === "walkable" && sel.polyId === poly.id}
+                />
               ))}
 
             {showOverlay &&
               data.colliders.map((poly) => (
-                <PolySvg key={poly.id} poly={poly} kind="collider" selected={sel.kind === "collider" && sel.polyId === poly.id} />
+                <PolySvg
+                  key={poly.id}
+                  poly={poly}
+                  kind="collider"
+                  selected={sel.kind === "collider" && sel.polyId === poly.id}
+                />
               ))}
 
             {showOverlay &&
@@ -715,11 +826,21 @@ export default function NavMeshEditor({
                     cx={cp.p.x}
                     cy={cp.p.y}
                     r={6}
-                    fill={sel.kind === "point" && sel.pointId === cp.id ? "rgba(255,80,80,0.9)" : "rgba(255,80,80,0.6)"}
+                    fill={
+                      sel.kind === "point" && sel.pointId === cp.id
+                        ? "rgba(255,80,80,0.9)"
+                        : "rgba(255,80,80,0.6)"
+                    }
                     stroke="rgba(255,255,255,0.8)"
                     strokeWidth={1}
                   />
-                  <text x={cp.p.x + 10} y={cp.p.y - 10} fill="rgba(255,255,255,0.85)" fontSize={12} fontFamily="monospace">
+                  <text
+                    x={cp.p.x + 10}
+                    y={cp.p.y - 10}
+                    fill="rgba(255,255,255,0.85)"
+                    fontSize={12}
+                    fontFamily="monospace"
+                  >
                     {cp.name}
                   </text>
                 </g>
@@ -801,7 +922,13 @@ function PolySvg({
           strokeWidth={2}
         />
       ))}
-      <text x={poly.points[0]?.x ?? 0} y={(poly.points[0]?.y ?? 0) - 12} fill="rgba(255,255,255,0.9)" fontSize={12} fontFamily="monospace">
+      <text
+        x={poly.points[0]?.x ?? 0}
+        y={(poly.points[0]?.y ?? 0) - 12}
+        fill="rgba(255,255,255,0.9)"
+        fontSize={12}
+        fontFamily="monospace"
+      >
         {poly.name}
       </text>
     </g>
@@ -852,7 +979,7 @@ function SceneZoneSvg({
         fontSize={12}
         fontFamily="monospace"
       >
-        {zone.name} → {zone.targetSceneId || "(unset)"}
+        {zone.name} → {(zone.targetSceneId as any) || "(unset)"}
       </text>
     </g>
   );
