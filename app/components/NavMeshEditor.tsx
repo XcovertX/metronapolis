@@ -1,37 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-
-type Pt = { x: number; y: number };
-
-type Polygon = {
-  id: string;
-  name: string;
-  points: Pt[]; // ✅ STORED IN NATIVE IMAGE PX
-};
-
-type SceneChangeZone = {
-  id: string;
-  name: string;
-  points: Pt[]; // ✅ STORED IN NATIVE IMAGE PX
-  targetSceneId: string; // ✅ what to load when Casper enters
-};
-
-type CollisionPoint = {
-  id: string;
-  name: string;
-  p: Pt; // ✅ STORED IN NATIVE IMAGE PX
-};
-
-export type WalkCollisionData = {
-  version: 1;
-  walkables: Polygon[];
-  colliders: Polygon[];
-  collisionPoints: CollisionPoint[];
-
-  /** ✅ NEW */
-  sceneChangeZones: SceneChangeZone[];
-};
+import type { WalkCollisionData, Polygon, SceneChangeZone, Pt } from "@/app/game/navMeshs/types";
+import { SceneId } from "../game/sceneGraph";
 
 type Mode = "select" | "walkable" | "collider" | "point" | "scene";
 
@@ -274,7 +245,7 @@ export default function NavMeshEditor({
     });
   };
 
-  const updateSelectedTargetSceneId = (targetSceneId: string) => {
+  const updateSelectedTargetSceneId = (targetSceneId: SceneId) => {
     if (sel.kind !== "scene") return;
     setData((d) => ({
       ...d,
@@ -652,7 +623,7 @@ export default function NavMeshEditor({
                   <label className="text-[11px] opacity-80">Target Scene ID</label>
                   <input
                     value={selectedTargetSceneId}
-                    onChange={(e) => updateSelectedTargetSceneId(e.target.value)}
+                    onChange={(e) => updateSelectedTargetSceneId(e.target.value as SceneId)}
                     placeholder='e.g. "apartment:lobby"'
                     className="w-full rounded-md bg-black/40 px-2 py-1 text-xs outline-none"
                   />

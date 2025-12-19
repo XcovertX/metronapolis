@@ -8,6 +8,8 @@ import { NAVMESH_BY_SCENE } from "@/app/game/navMeshs";
 import { LIGHTING_BY_SCENE } from "@/app/game/lighting";
 import NavMeshEditor from "../NavMeshEditor";
 import LightingEditor from "../LightingEditor";
+import { useLoopState } from "../LoopStateContext";
+import type { WalkCollisionData, SceneChangeZone } from "@/app/game/navMeshs/types";
 
 type BaseSceneProps = {
   id: string;
@@ -35,11 +37,12 @@ export default function BaseScene({
   const navmesh = NAVMESH_BY_SCENE[id];
   const lighting = LIGHTING_BY_SCENE[id];
 
-  const [showLightingDebug, setShowLightingDebug] = useState(false);
   const [showNavMeshEditor, setShowNavMeshEditor] = useState(false);
   const [showLightingEditor, setShowLightingEditor] = useState(false);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
+
+  const { goToScene } = useLoopState();
 
   useEffect(() => {
     setOptions(options);
@@ -55,10 +58,6 @@ export default function BaseScene({
       if (e.ctrlKey && e.key === "2") {
         e.preventDefault();
         setShowLightingEditor((p) => !p);
-      }
-      if (e.ctrlKey && e.key.toLowerCase() === "3") {
-        e.preventDefault();
-        setShowLightingDebug((p) => !p);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -135,6 +134,9 @@ export default function BaseScene({
               lightingData={lighting}
               start={startPosition}
               spriteScale={spriteScale}
+              onSceneChange={(targetSceneId, zoneId) => {
+                goToScene(targetSceneId);
+              }}
             />
           )}
         </div>

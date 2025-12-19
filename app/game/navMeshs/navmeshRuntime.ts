@@ -1,18 +1,9 @@
+import { SceneId } from "../sceneGraph";
+import { Pt, Polygon, WalkCollisionData } from "./types";
+
 // app/game/navmeshRuntime.ts
-export type Pt = { x: number; y: number };
 
-export type Polygon = {
-  id: string;
-  name: string;
-  points: Pt[];
-};
 
-export type WalkCollisionData = {
-  version: 1;
-  walkables: Polygon[];
-  colliders: Polygon[];
-  collisionPoints: { id: string; name: string; p: Pt }[];
-};
 
 export function pointInPoly(pt: Pt, poly: Pt[]) {
   let inside = false;

@@ -7,16 +7,19 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrthographicCamera, useTexture } from "@react-three/drei";
 import type { LightingData, LightDef } from "../game/lighting/lightingTypes";
 import Background from "three/src/renderers/common/Background.js";
+import { SceneId } from "../game/sceneGraph";
+import type { WalkCollisionData } from "../game/navMeshs/types";
 
 /** ----- Types ----- */
 type Point = { x: number; y: number };
 
 type Polygon = { id: string; name: string; points: Point[] };
-export type WalkCollisionData = {
-  version: 1;
-  walkables: Polygon[];
-  colliders: Polygon[];
-  collisionPoints: { id: string; name: string; p: Point }[];
+
+type SceneChangeZone = {
+  id: string;
+  name: string;
+  points: Point[];
+  targetSceneId: SceneId;
 };
 
 type Lamp = {
@@ -51,11 +54,17 @@ type CasperWalkerProps = {
   showLightMarkers?: boolean;
   zIndex?: number;
 
-  /** ✅ NEW: scales ONLY the sprite (not canvas/camera). 1 = native size */
+  /** ✅ scales ONLY the sprite (not canvas/camera). 1 = native size */
   spriteScale?: number;
 
-  /** ✅ OPTIONAL: if true, speed scales with spriteScale (keeps "feet speed" feeling similar) */
+  /** ✅ if true, speed scales with spriteScale */
   speedScalesWithSprite?: boolean;
+
+  /** ✅ NEW: called when Casper ENTERS a scene-change-zone */
+  onSceneChange?: (targetSceneId: SceneId, zoneId: string) => void;
+
+  /** ✅ OPTIONAL: debounce time between triggers (ms). default 800 */
+  sceneChangeCooldownMs?: number;
 };
 
 /** ----- helpers ----- */
@@ -123,6 +132,20 @@ function stepWithCollision(
     p = next;
   }
   return p;
+}
+
+/** ----- Scene-change detection ----- */
+function findSceneZoneHit(
+  pWorld: Point,
+  zones: SceneChangeZone[] | undefined
+): { zoneId: string; targetSceneId: SceneId } | null {
+  if (!zones || zones.length === 0) return null;
+  for (const z of zones) {
+    if (z.points.length >= 3 && pointInPoly(pWorld, z.points)) {
+      return { zoneId: z.id, targetSceneId: z.targetSceneId };
+    }
+  }
+  return null;
 }
 
 /** ----- Lighting components ----- */
@@ -274,6 +297,11 @@ function CasperSprite({
   navWorld,
   setTargetRef,
   spriteScale,
+
+  /** ✅ NEW */
+  sceneZonesWorld,
+  onSceneChange,
+  sceneChangeCooldownMs,
 }: {
   sheetSrc: string;
   normalSrc: string;
@@ -286,13 +314,21 @@ function CasperSprite({
   standingFrameIndex: number;
   navWorld: WalkCollisionData;
   setTargetRef: React.MutableRefObject<((p: Point) => void) | null>;
-  /** ✅ NEW */
   spriteScale: number;
+
+  /** ✅ NEW */
+  sceneZonesWorld?: SceneChangeZone[];
+  onSceneChange?: (targetSceneId: SceneId, zoneId: string) => void;
+  sceneChangeCooldownMs: number;
 }) {
   const [pos, setPos] = useState<Point>(startWorld);
   const [target, setTarget] = useState<Point | null>(null);
   const [frame, setFrame] = useState<number>(standingFrameIndex);
   const [facing, setFacing] = useState<1 | -1>(1);
+
+  // scene-zone debounce
+  const lastZoneRef = useRef<string | null>(null);
+  const lastTriggerMsRef = useRef<number>(0);
 
   useEffect(() => {
     setPos((p) => (target ? p : startWorld));
@@ -343,6 +379,7 @@ function CasperSprite({
 
     const walking = !!target;
 
+    // --- movement ---
     if (!walking) {
       if (frame !== standingFrameIndex) setFrame(standingFrameIndex);
     } else {
@@ -386,14 +423,37 @@ function CasperSprite({
       }
     }
 
+    // --- apply transforms using the latest `pos` state value from this closure ---
     if (meshRef.current) {
       meshRef.current.position.set(pos.x, pos.y, 0);
-
-      // ✅ NEW: apply spriteScale without touching canvas/camera
       meshRef.current.scale.set(facing * spriteScale, spriteScale, 1);
 
       diffuse.offset.x = frame / frameCount;
       normal.offset.x = frame / frameCount;
+    }
+
+    // --- scene-zone check (ENTER detection) ---
+    if (onSceneChange && sceneZonesWorld && sceneZonesWorld.length > 0) {
+      const hit = findSceneZoneHit(pos, sceneZonesWorld);
+      const nowMs = performance.now();
+
+      if (!hit) {
+        // left all zones
+        lastZoneRef.current = null;
+      } else {
+        // entered (or still inside) a zone
+        const isNewZone = lastZoneRef.current !== hit.zoneId;
+        const cooledDown = nowMs - lastTriggerMsRef.current >= sceneChangeCooldownMs;
+
+        if (isNewZone && cooledDown) {
+          lastZoneRef.current = hit.zoneId;
+          lastTriggerMsRef.current = nowMs;
+          onSceneChange(hit.targetSceneId, hit.zoneId);
+        } else {
+          // stay latched while inside
+          lastZoneRef.current = hit.zoneId;
+        }
+      }
     }
   });
 
@@ -433,7 +493,6 @@ export default function CasperWalker(props: CasperWalkerProps) {
 
   const spriteScale = props.spriteScale ?? 1;
 
-  // ✅ Optional: scale speed with sprite so motion "feels" consistent
   const speedPxPerSec =
     (props.speedScalesWithSprite ?? false) ? baseSpeedPxPerSec * spriteScale : baseSpeedPxPerSec;
 
@@ -452,7 +511,6 @@ export default function CasperWalker(props: CasperWalkerProps) {
     y: Math.round(props.bgNative.h * 0.55),
   };
 
-  // ✅ Measure the stage, and drive Canvas sizing from it.
   const [stageSize, setStageSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [stagePx, setStagePx] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
@@ -500,9 +558,7 @@ export default function CasperWalker(props: CasperWalkerProps) {
   const ready = stageSize.w > 2 && stageSize.h > 2;
   if (!ready) return null;
 
-  // ✅ zoom computed from REAL stage pixels
   const zoom = Math.min(stageSize.w / props.bgNative.w, stageSize.h / props.bgNative.h);
-  console.log("CasperWalker: stageSize=", stageSize, " zoom=", zoom);
 
   return (
     <div
@@ -514,11 +570,7 @@ export default function CasperWalker(props: CasperWalkerProps) {
         pointerEvents: "auto",
       }}
     >
-      <Canvas
-        orthographic
-        gl={{ antialias: false, alpha: true }}
-        style={{ width: stageSize.w, height: stageSize.h }}
-      >
+      <Canvas orthographic gl={{ antialias: false, alpha: true }} style={{ width: stageSize.w, height: stageSize.h }}>
         <OrthoBgCamera stageSize={stageSize} zoom={zoom} />
 
         <Scene
@@ -537,6 +589,8 @@ export default function CasperWalker(props: CasperWalkerProps) {
           frameH={frameH}
           standingFrameIndex={standingFrameIndex}
           spriteScale={spriteScale}
+          onSceneChange={props.onSceneChange}
+          sceneChangeCooldownMs={props.sceneChangeCooldownMs ?? 800}
         />
       </Canvas>
     </div>
@@ -559,6 +613,8 @@ function Scene({
   frameH,
   standingFrameIndex,
   spriteScale,
+  onSceneChange,
+  sceneChangeCooldownMs,
 }: {
   bgNative: { w: number; h: number };
   sheetSrc: string;
@@ -575,6 +631,9 @@ function Scene({
   frameH: number;
   standingFrameIndex: number;
   spriteScale: number;
+
+  onSceneChange?: (targetSceneId: SceneId, zoneId: string) => void;
+  sceneChangeCooldownMs: number;
 }) {
   const setTargetRef = useRef<((p: Point) => void) | null>(null);
 
@@ -594,8 +653,17 @@ function Scene({
         ...cp,
         p: imgPxToWorld(cp.p, bgNative),
       })),
+      sceneChangeZones: (navmeshImg.sceneChangeZones ?? []).map((z) => ({
+        ...z,
+        points: z.points.map((pt) => imgPxToWorld(pt, bgNative)),
+      })),
     };
   }, [navmeshImg, bgNative]);
+
+  const sceneZonesWorld = useMemo<SceneChangeZone[]>(
+    () => (navWorld.sceneChangeZones ?? []) as SceneChangeZone[],
+    [navWorld]
+  );
 
   const lightingWorld = useMemo<LightingData | undefined>(() => {
     if (!lightingImg) return undefined;
@@ -657,6 +725,9 @@ function Scene({
         navWorld={navWorld}
         setTargetRef={setTargetRef}
         spriteScale={spriteScale}
+        sceneZonesWorld={sceneZonesWorld}
+        onSceneChange={onSceneChange}
+        sceneChangeCooldownMs={sceneChangeCooldownMs}
       />
     </>
   );
@@ -667,7 +738,6 @@ function OrthoBgCamera({ stageSize, zoom }: { stageSize: { w: number; h: number 
   const camRef = useRef<THREE.OrthographicCamera | null>(null);
 
   useEffect(() => {
-    console.log("bgNative=", stageSize, " zoom=", zoom);
     camRef.current?.updateProjectionMatrix();
   }, [zoom, stageSize.w, stageSize.h]);
 

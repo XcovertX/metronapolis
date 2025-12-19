@@ -1,4 +1,4 @@
-import type { WalkCollisionData } from "./navmeshRuntime";
+import type { WalkCollisionData } from "./types";
 
 export const aptLivingroomNavmesh: WalkCollisionData = {
   "version": 1,
@@ -27,7 +27,32 @@ export const aptLivingroomNavmesh: WalkCollisionData = {
     }
   ],
   "colliders": [],
-  "collisionPoints": []
+  "collisionPoints": [],
+  "sceneChangeZones": [
+    {
+      "id": "scene_3007d8d3ecc4c8_19b37cfc300",
+      "name": "apt-living to apt-bedroom",
+      "points": [
+        {
+          "x": 8,
+          "y": 872
+        },
+        {
+          "x": 8,
+          "y": 992
+        },
+        {
+          "x": 88,
+          "y": 1000
+        },
+        {
+          "x": 80,
+          "y": 864
+        }
+      ],
+      "targetSceneId": "apt-bedroom"
+    }
+  ]
 };
 
 

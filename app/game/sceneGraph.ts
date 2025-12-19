@@ -592,6 +592,14 @@ export const sceneGraph = {
     exits: { n: "clinic-waiting" },
     tags: ["exterior"],
   },
+  "scene:unknown": {
+    id: "scene:unknown",
+    title: "Unknown Scene",
+    x: 0,
+    y: 0,
+    z: 0,
+    exits: {},
+  }
 } as const satisfies Record<string, SceneDef<string>>;
 
 

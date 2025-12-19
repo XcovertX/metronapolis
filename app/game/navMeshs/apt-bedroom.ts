@@ -1,7 +1,7 @@
-import type { WalkCollisionData } from "./navmeshRuntime";
+import type { WalkCollisionData } from "./types";
 
 export const aptBedroomNavmesh: WalkCollisionData = {
-"version": 1,
+  "version": 1,
   "walkables": [
     {
       "id": "walk_b683050a92b0f8_19b2d7e34e9",
@@ -27,7 +27,8 @@ export const aptBedroomNavmesh: WalkCollisionData = {
     }
   ],
   "colliders": [],
-  "collisionPoints": []
+  "collisionPoints": [],
+  sceneChangeZones: []
 };
 
 
