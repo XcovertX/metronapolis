@@ -46,6 +46,8 @@ type LoopStateValue = {
   sceneDef: ReturnType<typeof getScene>;
   goToScene: (id: SceneId) => void;
 
+  lastScene: SceneId;
+
   // time
   timeMinutes: number;
   advanceTime: (mins: number) => void;
@@ -99,6 +101,7 @@ const initialNPCState: NPCState = {
 
 export function LoopStateProvider({ children }: { children: ReactNode }) {
   const [scene, setScene] = useState<SceneId>(START_SCENE);
+  const [lastScene, setLastScene] = useState<SceneId>(START_SCENE);
   const [timeMinutes, setTimeMinutes] = useState<number>(START_TIME_MINUTES);
   const [loopCount, setLoopCount] = useState<number>(1);
 
@@ -192,6 +195,7 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
   );
 
   const goToScene = useCallback((id: SceneId) => {
+    setLastScene(sceneRef.current);
     sceneRef.current = id;
     setScene(id);
   }, []);
@@ -270,6 +274,8 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
     scene,
     sceneDef,
     goToScene,
+
+    lastScene,
 
     timeMinutes,
     advanceTime,

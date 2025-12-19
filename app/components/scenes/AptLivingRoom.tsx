@@ -9,8 +9,27 @@ import { TIME } from "../../game/timeRules";
 import type { PlayerOption } from "../OptionsContext";
 
 export default function AptLivingroom() {
-  const { advanceTime, goToScene, timeMinutes, flags, setFlags } = useLoopState();
+  const { advanceTime, goToScene, timeMinutes, flags, setFlags, lastScene } = useLoopState();
   const { openExamine } = useExamine();
+
+  // Set start position based on lastScene
+  let startPosition: { x: number; y: number };
+  switch (lastScene) {
+    case "apt-bedroom":
+      startPosition = { x: 100, y: 1000 };
+      break;
+    case "apt-bathroom":
+      startPosition = { x: 450, y: 800 };
+      break;
+    case "apt-kitchen":
+      startPosition = { x: 700, y: 1150 };
+      break;
+    case "apt-hallway":
+      startPosition = { x: 500, y: 1430 };
+      break;
+    default:
+      startPosition = { x: 600, y: 1300 };
+  }
 
   const catHere = getCatLocation(timeMinutes) === "apt-bedroom";
   const showWakeText = !flags.hasWokenUp;
@@ -91,6 +110,7 @@ export default function AptLivingroom() {
     description={description}
     options={options}
     spriteScale={1.4}
+    startPosition={startPosition}
   />
   );
 }

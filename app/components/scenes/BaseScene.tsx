@@ -18,6 +18,7 @@ type BaseSceneProps = {
   options: PlayerOption[];
   bgNative: { w: number; h: number };
   spriteScale?: number;
+  startPosition?: { x: number; y: number }
 };
 
 export default function BaseScene({
@@ -26,8 +27,9 @@ export default function BaseScene({
   description,
   background,
   options,
-  bgNative,
+  bgNative = { w: 1920, h: 1080 },
   spriteScale = 1,
+  startPosition = { x: Math.round(bgNative.w * 0.5), y: Math.round(bgNative.h * 0.5) }
 }: BaseSceneProps) {
   const { setOptions, clearOptions } = useOptions();
 
@@ -134,10 +136,7 @@ export default function BaseScene({
               bgNative={bgNative}
               navmesh={navmesh}
               lightingData={lighting}
-              start={{
-                x: Math.round(bgNative.w * 0.5),
-                y: Math.round(bgNative.h * 0.95),
-              }}
+              start={startPosition}
               spriteScale={spriteScale}
             />
           )}

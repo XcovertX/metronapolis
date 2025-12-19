@@ -15,6 +15,8 @@ export default function AptBedroom() {
   const catHere = getCatLocation(timeMinutes) === "apt-bedroom";
   const showWakeText = !flags.hasWokenUp;
 
+  const startPosition = { x: 316, y: 590 }; // Center bottom of the bedroom
+
   const goLiving = () => {
     if (!flags.hasWokenUp) {
       setFlags((prev) => ({ ...prev, hasWokenUp: true }));
@@ -75,6 +77,7 @@ export default function AptBedroom() {
     description={description}
     options={options}
     spriteScale={1.1}
+    startPosition={startPosition}
   />
   );
 }
