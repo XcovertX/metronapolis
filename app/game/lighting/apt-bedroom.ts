@@ -24,7 +24,7 @@ export const aptBedroomLighting: LightingData = {
       type: "point",
       x: 316,
       y: 316,
-      z: -600,
+      z: -2,
       color: "#c54db9",
       intensity: 210.05,
       distance: 900,

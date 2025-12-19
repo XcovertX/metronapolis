@@ -22,12 +22,14 @@ import StreetAlley from "./scenes/StreetAlley";
 import GraphScene from "./scenes/GraphScene";
 import SceneMessageOverlay from "./SceneMessageOverlay";
 import AptLivingroom from "./scenes/AptLivingRoom";
+import StreetLight from "./scenes/StreetLight";
 
 const AUTHORED_SCENES: Partial<Record<SceneId, React.FC>> = {
   "apt-bedroom": AptBedroom,
   "street-front": StreetFront,
   "street-alley": StreetAlley,
   "apt-living": AptLivingroom,
+  "streetlight": StreetLight,
 };
 
 export default function StoryRoot() {

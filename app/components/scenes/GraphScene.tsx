@@ -133,7 +133,10 @@ export default function GraphScene() {
       title={def.title}
       background={def.background}
       description={description}
-      options={options}
-    />
+      options={options} 
+      bgNative={{
+        w: 0,
+        h: 0
+      }}    />
   );
 }

@@ -26,7 +26,30 @@ export const aptLivingroomNavmesh: WalkCollisionData = {
       ]
     }
   ],
-  "colliders": [],
+  "colliders": [
+        {
+      id: "col_65ba79a690b508_19b3891e3b5",
+      name: "Collider 1",
+      points: [
+        {
+          x: 248,
+          y: 1016
+        },
+        {
+          x: 392,
+          y: 1096
+        },
+        {
+          x: 488,
+          y: 1056
+        },
+        {
+          x: 352,
+          y: 976
+        }
+      ]
+    }
+  ],
   "collisionPoints": [],
   "sceneChangeZones": [
     {
@@ -51,8 +74,33 @@ export const aptLivingroomNavmesh: WalkCollisionData = {
         }
       ],
       "targetSceneId": "apt-bedroom"
+    },
+
+        {
+      id: "scene_9b85c8ddab9cd8_19b388db338",
+      name: "apt-living to apt-bathroom",
+      points: [
+        {
+          x: 304,
+          y: 752
+        },
+        {
+          x: 360,
+          y: 808
+        },
+        {
+          x: 416,
+          y: 784
+        },
+        {
+          x: 392,
+          y: 704
+        }
+      ],
+      targetSceneId: "apt-bathroom"
     }
   ]
 };
+
 
 
