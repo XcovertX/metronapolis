@@ -28,7 +28,7 @@ export default function StreetLight() {
       startPosition = { x: 500, y: 1430 };
       break;
     default:
-      startPosition = { x: 600, y: 1300 };
+      startPosition = { x: 600, y: 1700 };
   }
 
   const catHere = getCatLocation(timeMinutes) === "apt-bedroom";
