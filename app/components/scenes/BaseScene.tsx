@@ -2,7 +2,7 @@
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import SceneView, { imgPxToWorld } from "../SceneView";
 import Casper from "../Casper";
 import { useOptions, PlayerOption } from "../OptionsContext";
@@ -11,6 +11,7 @@ import { LIGHTING_BY_SCENE } from "@/app/game/lighting";
 import NavMeshEditor from "../NavMeshEditor";
 import LightingEditor from "../LightingEditor";
 import { useLoopState } from "../LoopStateContext";
+import NpcWalker from "../NpcWalker";
 
 type BaseSceneProps = {
   id: string;
@@ -146,7 +147,19 @@ export default function BaseScene({
                   goToScene(targetSceneId);
                 }}
               />
-
+              <Suspense fallback={null}>
+                <NpcWalker
+                  startWorld={{ x: -200, y: -550 }}
+                  sheetSrc="/sprites/npc-walk.png"
+                  spriteScale={1.5}
+                  // Optional: make NPC walk somewhere
+                  // targetWorld={{ x: 150, y: -50 }}
+                  unlit={false}
+                  wander
+                  wanderRadius={500}
+                  wanderPauseMs={400}
+                />
+                </Suspense>
               {/* Later: <Npc .../> <Prop .../> etc */}
             </SceneView>
           )}
