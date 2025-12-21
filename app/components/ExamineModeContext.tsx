@@ -1,34 +1,41 @@
 // app/components/ExamineModeContext.tsx
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo, type ReactNode } from "react";
+import { useInteractionMode } from "./InteractionModeContext";
 
 type ExamineModeValue = {
   examineMode: boolean;
   toggleExamineMode: () => void;
   setExamineMode: (v: boolean) => void;
+
+  /** optional helpers */
+  armExamineOnce: () => void;
+  consumeExamine: () => void;
+  isOneShot: boolean;
 };
 
 const ExamineModeContext = createContext<ExamineModeValue | undefined>(undefined);
 
-export function ExamineModeProvider({ children }: { children: React.ReactNode }) {
-  const [examineMode, setExamineMode] = useState(false);
+/**
+ * ✅ Drop-in compat layer.
+ * Internally uses InteractionModeContext as the single source of truth.
+ */
+export function ExamineModeProvider({ children }: { children: ReactNode }) {
+  const { mode, toggle, setMode, clear, armOnce, consume, isOneShot } = useInteractionMode();
 
-  const toggleExamineMode = () => setExamineMode((v) => !v);
+  const value = useMemo<ExamineModeValue>(() => {
+    const examineMode = mode === "examine";
 
-  // Cursor change (future: swap to custom eye cursor)
-  useEffect(() => {
-    const prev = document.body.style.cursor;
-    document.body.style.cursor = examineMode ? "zoom-in" : "";
-    return () => {
-      document.body.style.cursor = prev;
+    return {
+      examineMode,
+      toggleExamineMode: () => toggle("examine"),
+      setExamineMode: (v: boolean) => (v ? setMode("examine") : clear()),
+      armExamineOnce: () => armOnce("examine"),
+      consumeExamine: () => consume(),
+      isOneShot,
     };
-  }, [examineMode]);
-
-  const value = useMemo(
-    () => ({ examineMode, toggleExamineMode, setExamineMode }),
-    [examineMode]
-  );
+  }, [mode, toggle, setMode, clear, armOnce, consume, isOneShot]);
 
   return <ExamineModeContext.Provider value={value}>{children}</ExamineModeContext.Provider>;
 }

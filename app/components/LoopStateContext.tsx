@@ -16,12 +16,18 @@ import { getScene, type SceneId } from "@/app/game/sceneGraph";
 import { runTimeStep } from "@/app/game/timeEngine";
 import { InventoryItem } from "@/app/game/items/types";
 import { canEnterScene } from "@/app/game/movementRules";
+import type { DecisionEvent, DecisionKnowledge, DecisionSpec, DecisionOutcomeSpec } from "@/app/game/events/decisionTypes";
 
+// A tiny id helper (good enough for local logs)
+function uid(prefix = "e") {
+  return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
+}
 
+// --------------------
+// existing types...
+// --------------------
 export type LoopFlags = {
   hasWokenUp: boolean;
-
-  // examples used so far
   rheaMet?: boolean;
   rheaWarned?: boolean;
   catObserved?: boolean;
@@ -45,7 +51,6 @@ type LoopStateValue = {
   scene: SceneId;
   sceneDef: ReturnType<typeof getScene>;
   goToScene: (id: SceneId) => void;
-
   lastScene: SceneId;
 
   // time
@@ -59,7 +64,6 @@ type LoopStateValue = {
   // state
   flags: LoopFlags;
   setFlags: React.Dispatch<React.SetStateAction<LoopFlags>>;
-
   npcState: NPCState;
   setNpcState: React.Dispatch<React.SetStateAction<NPCState>>;
 
@@ -78,6 +82,33 @@ type LoopStateValue = {
   // scene messages (ambient/delta popups)
   sceneMessages: string[];
   clearSceneMessages: () => void;
+
+  // --------------------
+  // Decision-tree system
+  // --------------------
+  decisionPath: DecisionEvent[];              // per-loop path (HUD tree)
+  decisionKnowledge: DecisionKnowledge;       // persists across loops
+
+  /**
+   * Commit a decision outcome. You provide:
+   * - spec: what decision + outcomes exist
+   * - outcomeId: chosen outcome
+   * - appliedTimeCost: actual mins to advance (full path or brevity)
+   * - parentEventId: optional, for tree edges
+   */
+  commitDecision: (args: {
+    spec: DecisionSpec;
+    outcomeId: string;
+    appliedTimeCost?: number;   // if omitted, uses learned time if known else default spec time
+    parentEventId?: string;
+    meta?: Record<string, any>;
+  }) => void;
+
+  /** Brevity becomes available once ALL outcomes have been seen at least once */
+  isDecisionBrevityAvailable: (spec: DecisionSpec) => boolean;
+
+  /** Get outcomes with best-known time cost (learned or default) */
+  getBrevityOutcomes: (spec: DecisionSpec) => Array<DecisionOutcomeSpec & { timeCost: number; learned: boolean }>;
 };
 
 const LoopStateContext = createContext<LoopStateValue | undefined>(undefined);
@@ -86,9 +117,7 @@ const LoopStateContext = createContext<LoopStateValue | undefined>(undefined);
 const START_SCENE: SceneId = "apt-bedroom";
 const START_TIME_MINUTES = 12 * 60;
 
-const initialFlags: LoopFlags = {
-  hasWokenUp: false,
-};
+const initialFlags: LoopFlags = { hasWokenUp: false };
 
 const initialNPCState: NPCState = {
   catMood: "calm",
@@ -113,6 +142,10 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
   const [sceneMessages, setSceneMessages] = useState<string[]>([]);
   const [lastEventAt, setLastEventAt] = useState<number>(() => Date.now());
 
+  // ✅ Decision tracking state
+  const [decisionPath, setDecisionPath] = useState<DecisionEvent[]>([]);
+  const [decisionKnowledge, setDecisionKnowledge] = useState<DecisionKnowledge>({});
+
   // --- refs so time engine always sees latest state ---
   const sceneRef = useRef<SceneId>(scene);
   const timeRef = useRef<number>(timeMinutes);
@@ -120,38 +153,23 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
   const npcRef = useRef<NPCState>(npcState);
   const invRef = useRef<InventoryItem[]>(inventory);
 
-  useEffect(() => {
-    sceneRef.current = scene;
-  }, [scene]);
-
-  useEffect(() => {
-    timeRef.current = timeMinutes;
-  }, [timeMinutes]);
-
-  useEffect(() => {
-    flagsRef.current = flags;
-  }, [flags]);
-
-  useEffect(() => {
-    npcRef.current = npcState;
-  }, [npcState]);
-
-  useEffect(() => {
-    invRef.current = inventory;
-  }, [inventory]);
+  useEffect(() => { sceneRef.current = scene; }, [scene]);
+  useEffect(() => { timeRef.current = timeMinutes; }, [timeMinutes]);
+  useEffect(() => { flagsRef.current = flags; }, [flags]);
+  useEffect(() => { npcRef.current = npcState; }, [npcState]);
+  useEffect(() => { invRef.current = inventory; }, [inventory]);
 
   const sceneDef = useMemo(() => getScene(scene), [scene]);
 
   const pushMessages = useCallback((msgs: string[]) => {
     if (!msgs.length) return;
-    setSceneMessages((prev) => [...prev, ...msgs].slice(-8)); // keep last few
+    setSceneMessages((prev) => [...prev, ...msgs].slice(-8));
   }, []);
 
   const clearSceneMessages = useCallback(() => setSceneMessages([]), []);
 
   /**
    * The ONLY place we should advance time.
-   * This ensures delta/ambient messages are computed consistently.
    */
   const stepTime = useCallback(
     (mins: number, reason: "action" | "idle") => {
@@ -160,11 +178,9 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
       const prev = timeRef.current;
       const next = prev + mins;
 
-      // update state + ref
       timeRef.current = next;
       setTimeMinutes(next);
 
-      // run time engine (entity deltas + ambient)
       const result = runTimeStep(prev, next, {
         scene: sceneRef.current,
         flags: flagsRef.current,
@@ -174,25 +190,17 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
 
       pushMessages(result.messages);
 
-      // If time engine declares death, reset loop after a short beat
       if (result.death) {
-        // Give the message overlay a moment to show
-        setTimeout(() => {
-          resetLoop();
-        }, 700);
+        setTimeout(() => { resetLoop(); }, 700);
         return;
       }
 
-      // reset idle timer whenever time changes
       setLastEventAt(Date.now());
     },
     [pushMessages]
   );
 
-  const advanceTime = useCallback(
-    (mins: number) => stepTime(mins, "action"),
-    [stepTime]
-  );
+  const advanceTime = useCallback((mins: number) => stepTime(mins, "action"), [stepTime]);
 
   const goToScene = useCallback((id: SceneId) => {
     setLastScene(sceneRef.current);
@@ -200,27 +208,17 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
     setScene(id);
   }, []);
 
-  const addItem = (item: InventoryItem) => {
-    setInventory((prev) => [...prev, item]);
-  };
-
-  const removeItem = (id: string) => {
-    setInventory((prev) => prev.filter((i) => i.id !== id));
-  };
-
-  const hasItem = (id: string) => {
-    return inventory.some((i) => i.id === id);
-  };
+  const addItem = (item: InventoryItem) => setInventory((prev) => [...prev, item]);
+  const removeItem = (id: string) => setInventory((prev) => prev.filter((i) => i.id !== id));
+  const hasItem = (id: string) => inventory.some((i) => i.id === id);
 
   const addCredits = useCallback((amount: number) => {
     setCredits((prev) => Math.max(0, prev + amount));
   }, []);
-
   const canAfford = useCallback((amount: number) => credits >= amount, [credits]);
 
   const spendCredits = useCallback((amount: number) => {
     if (amount <= 0) return true;
-
     let didSpend = false;
     setCredits((prev) => {
       if (prev < amount) return prev;
@@ -230,10 +228,97 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
     return didSpend;
   }, []);
 
-  const pushMessage = useCallback((text: string) => {
-    if (!text) return;
-    pushMessages([text]);
-  }, [pushMessages]);
+  const pushMessage = useCallback(
+    (text: string) => {
+      if (!text) return;
+      pushMessages([text]);
+    },
+    [pushMessages]
+  );
+
+  // --------------------
+  // Decision helpers
+  // --------------------
+  const isDecisionBrevityAvailable = useCallback(
+    (spec: DecisionSpec) => {
+      const k = decisionKnowledge[spec.id];
+      if (!k) return false;
+      // all outcomes must have been seen at least once
+      return spec.outcomes.every((o) => !!k.seenOutcomeIds[o.id]);
+    },
+    [decisionKnowledge]
+  );
+
+  const getBrevityOutcomes = useCallback(
+    (spec: DecisionSpec) => {
+      const k = decisionKnowledge[spec.id];
+      return spec.outcomes.map((o) => {
+        const learned = !!k?.learnedOutcomeTimeCost?.[o.id];
+        const timeCost = learned ? k.learnedOutcomeTimeCost[o.id] : o.defaultTimeCost;
+        return { ...o, timeCost, learned };
+      });
+    },
+    [decisionKnowledge]
+  );
+
+  const commitDecision = useCallback(
+    (args: {
+      spec: DecisionSpec;
+      outcomeId: string;
+      appliedTimeCost?: number;
+      parentEventId?: string;
+      meta?: Record<string, any>;
+    }) => {
+      const { spec, outcomeId, parentEventId, meta } = args;
+
+      // Determine best time cost:
+      const k = decisionKnowledge[spec.id];
+      const learned = k?.learnedOutcomeTimeCost?.[outcomeId];
+      const defaultCost = spec.outcomes.find((o) => o.id === outcomeId)?.defaultTimeCost ?? 0;
+
+      const appliedTimeCost =
+        typeof args.appliedTimeCost === "number"
+          ? args.appliedTimeCost
+          : typeof learned === "number"
+          ? learned
+          : defaultCost;
+
+      // 1) Append path event (HUD tree)
+      const ev: DecisionEvent = {
+        eventId: uid("dec"),
+        loop: loopCount,
+        atMinute: timeRef.current,
+        decisionId: spec.id,
+        outcomeId,
+        appliedTimeCost,
+        parentEventId,
+        meta,
+      };
+      setDecisionPath((prev) => [...prev, ev]);
+
+      // 2) Update knowledge (persist across loops)
+      setDecisionKnowledge((prev) => {
+        const cur = prev[spec.id] ?? { seenOutcomeIds: {}, learnedOutcomeTimeCost: {} };
+
+        // mark seen always, ensure type is Record<string, true>
+        const nextSeen: Record<string, true> = { ...cur.seenOutcomeIds };
+        nextSeen[outcomeId] = true;
+
+        // If this commit represents a "full" traversal (or otherwise correct),
+        // you can overwrite learned time cost. Up to you when you pass appliedTimeCost.
+        const nextLearned = { ...cur.learnedOutcomeTimeCost, [outcomeId]: appliedTimeCost };
+
+        return {
+          ...prev,
+          [spec.id]: { seenOutcomeIds: nextSeen, learnedOutcomeTimeCost: nextLearned },
+        };
+      });
+
+      // 3) Advance time through the single allowed gate
+      if (appliedTimeCost > 0) advanceTime(appliedTimeCost);
+    },
+    [advanceTime, decisionKnowledge, loopCount]
+  );
 
   const resetLoop = useCallback(() => {
     setLoopCount((c) => c + 1);
@@ -251,22 +336,22 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
     setFlags(initialFlags);
     setNpcState(initialNPCState);
     setInventory([]);
-
     setCredits(0);
-
     setSceneMessages([]);
     setLastEventAt(Date.now());
+
+    // ✅ Per-loop decision path resets so HUD shows "this loop's run"
+    setDecisionPath([]);
+
+    // ✅ IMPORTANT: decisionKnowledge does NOT reset (player remembers across loops)
   }, []);
 
-  // Idle tick: if 60s passes with no action/time-change, advance +1 minute.
+  // Idle tick
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
-      if (now - lastEventAt >= 60_000) {
-        stepTime(1, "idle");
-      }
+      if (now - lastEventAt >= 60_000) stepTime(1, "idle");
     }, 1000);
-
     return () => clearInterval(interval);
   }, [lastEventAt, stepTime]);
 
@@ -274,7 +359,6 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
     scene,
     sceneDef,
     goToScene,
-
     lastScene,
 
     timeMinutes,
@@ -303,6 +387,13 @@ export function LoopStateProvider({ children }: { children: ReactNode }) {
 
     sceneMessages,
     clearSceneMessages,
+
+    // decision system
+    decisionPath,
+    decisionKnowledge,
+    commitDecision,
+    isDecisionBrevityAvailable,
+    getBrevityOutcomes,
   };
 
   return <LoopStateContext.Provider value={value}>{children}</LoopStateContext.Provider>;

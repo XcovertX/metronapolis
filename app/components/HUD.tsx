@@ -33,9 +33,40 @@ function CornerCut() {
   );
 }
 
+function kindLabel(kind?: string) {
+  switch (kind) {
+    case "navigate":
+      return "NAV";
+    case "dialog":
+      return "DIALOG";
+    case "examine":
+      return "EXAM";
+    case "pickup":
+      return "TAKE";
+    case "custom":
+      return "EVENT";
+    default:
+      return "ACT";
+  }
+}
+
+function formatDelta(mins: number) {
+  if (!mins || mins === 0) return "+0m";
+  const sign = mins > 0 ? "+" : "";
+  return `${sign}${mins}m`;
+}
+
 export default function Hud() {
-  const { scene, sceneDef, timeMinutes, loopCount, inventory, credits, flags } =
-    useLoopState();
+  const {
+    scene,
+    sceneDef,
+    timeMinutes,
+    loopCount,
+    inventory,
+    credits,
+    flags,
+    decisionPath,
+  } = useLoopState();
 
   const [invOpen, setInvOpen] = useState(false);
 
@@ -44,6 +75,12 @@ export default function Hud() {
     () => clamp(((timeMinutes * 37) % 10) / 100, 0, 0.09),
     [timeMinutes]
   );
+
+  // show last N decisions (this loop)
+  const lastDecisions = useMemo(() => {
+    const N = 10;
+    return decisionPath.slice(-N).reverse();
+  }, [decisionPath]);
 
   return (
     <>
@@ -127,18 +164,97 @@ export default function Hud() {
               <span>INV: {inventory.length}</span>
             </div>
 
-            <div className="mt-5 flex flex-col gap-[30px]">
+            {/* ✅ Decision stack */}
+            <div className="mt-4">
+              <div className="flex items-baseline justify-between">
+                <div className="text-[10px] tracking-[1.2px] opacity-65">
+                  DECISION STACK
+                </div>
+                <div className="text-[10px] tracking-[1px] opacity-60">
+                  {decisionPath.length ? `${decisionPath.length} events` : "empty"}
+                </div>
+              </div>
+
+              <div
+                aria-hidden
+                className="mt-2 h-px [background:linear-gradient(90deg,transparent,rgba(0,255,210,0.22),transparent)]"
+              />
+
+              <div className="mt-2 max-h-[170px] overflow-hidden">
+                {lastDecisions.length ? (
+                  <ol className="flex flex-col gap-[6px]">
+                    {lastDecisions.map((ev) => (
+                      <li
+                        key={ev.eventId}
+                        className={[
+                          "relative pointer-events-none rounded-[10px] border",
+                          "border-[rgba(0,255,210,0.18)] bg-[rgba(0,0,0,0.38)]",
+                          "px-[10px] py-[8px]",
+                          "shadow-[inset_0_0_0_1px_rgba(0,255,210,0.05)]",
+                        ].join(" ")}
+                      >
+                        {/* left accent bar */}
+                        <span
+                          aria-hidden
+                          className="absolute left-0 top-0 h-full w-[3px] rounded-l-[10px] bg-[rgba(0,255,210,0.25)]"
+                        />
+
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="rounded-[6px] border border-[rgba(255,255,255,0.07)] bg-[rgba(0,0,0,0.30)] px-[6px] py-[2px] text-[9px] tracking-[1.2px] opacity-80">
+                                {kindLabel(ev.meta?.kind ?? ev.meta?.decisionKind)}
+                              </span>
+
+                              <span className="truncate text-[10px] tracking-[0.8px] opacity-90">
+                                {ev.decisionId}
+                              </span>
+                            </div>
+
+                            <div className="mt-[4px] flex items-center gap-2 text-[9px] tracking-[0.6px] opacity-70">
+                              <span className="truncate">→ {ev.outcomeId}</span>
+                              {typeof ev.parentEventId === "string" ? (
+                                <span className="opacity-50">• parent</span>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            <div className="text-[9px] tracking-[1px] opacity-65">
+                              {formatTime(ev.atMinute)}
+                            </div>
+                            <div className="mt-[2px] text-[10px] tracking-[1.2px] text-[rgba(255,200,90,0.95)] [text-shadow:0_0_12px_rgba(255,200,90,0.18)]">
+                              {formatDelta(ev.appliedTimeCost)}
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <div className="mt-2 text-[10px] tracking-[0.8px] opacity-55">
+                    No decisions logged yet in this loop.
+                  </div>
+                )}
+              </div>
+
+              {/* faint hint */}
+              <div className="mt-2 text-[9px] tracking-[0.6px] opacity-45">
+                Most recent first • shows last 10
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-[14px]">
               <button
                 onClick={() => setInvOpen(true)}
                 className="pointer-events-auto cursor-pointer rounded-[10px] border border-[rgba(0,255,210,0.25)] bg-[rgba(0,0,0,0.55)] px-[10px] py-2 text-[11px] tracking-[1px] uppercase text-[rgba(210,255,245,0.95)]"
               >
                 Inventory
               </button>
-            </div>
-            <div className="mt-5 flex flex-col gap-[30px]">
+
               <button
                 onClick={() => setInvOpen(true)}
-                className="pointer-events-auto cursor-pointer rounded-[10px] border border-[rgba(0,255,210,0.25)] bg-[rgba(0,0,0,0.55)] px-[10px] py-15 text-[11px] tracking-[1px] uppercase text-[rgba(210,255,245,0.95)]"
+                className="pointer-events-auto cursor-pointer rounded-[10px] border border-[rgba(0,255,210,0.25)] bg-[rgba(0,0,0,0.55)] px-[10px] py-2 text-[11px] tracking-[1px] uppercase text-[rgba(210,255,245,0.95)]"
               >
                 WEAPON
               </button>
@@ -147,9 +263,7 @@ export default function Hud() {
 
           <HudPanel>
             <CornerCut />
-            <div className="text-[10px] tracking-[1.2px] opacity-65">
-              SYSTEM
-            </div>
+            <div className="text-[10px] tracking-[1.2px] opacity-65">SYSTEM</div>
 
             <div className="mt-[10px] grid gap-2">
               <StatusRow k="SIGNAL" v="STABLE" accent="good" />

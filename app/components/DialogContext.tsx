@@ -1,8 +1,15 @@
 // app/components/DialogContext.tsx
 "use client";
 
-import React, { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useLoopState } from "./LoopStateContext";
+import type { DecisionSpec } from "../game/events/decisionTypes";
 
 export type DialogConditionContext = {
   flags: any;
@@ -45,7 +52,13 @@ export type DialogNode = {
 type DialogContextValue = {
   activeNode: DialogNode | null;
   startDialog: (nodeId: string) => void;
+
+  /**
+   * ✅ updated to decision-system:
+   * commits a dialog decision (logs + advances time) then applies effects.
+   */
   chooseResponse: (response: DialogResponse) => void;
+
   endDialog: () => void;
 };
 
@@ -53,17 +66,22 @@ type DialogContextValue = {
  * Registry of condition functions (client-side).
  * Add to this as you need, but keep ids stable.
  */
-const conditionRegistry: Record<ConditionId, (ctx: DialogConditionContext) => boolean> = {
+const conditionRegistry: Record<
+  ConditionId,
+  (ctx: DialogConditionContext) => boolean
+> = {
   // examples:
   // "has:keycard": (ctx) => ctx.inventory.includes("maintenanceKeycard"),
   // "time:before_1220": (ctx) => ctx.timeMinutes <= 12 * 60 + 20,
 };
 
-function checkCondition(conditionId: ConditionId | undefined, ctx: DialogConditionContext): boolean {
+function checkCondition(
+  conditionId: ConditionId | undefined,
+  ctx: DialogConditionContext
+): boolean {
   if (!conditionId) return true;
   const fn = conditionRegistry[conditionId];
   if (!fn) {
-    // Unknown condition => fail closed (safer) OR true (looser). Choose one.
     console.warn(`Dialog condition "${conditionId}" not found`);
     return false;
   }
@@ -81,7 +99,14 @@ export function DialogProvider({
 }) {
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
 
-  const { advanceTime, setFlags, flags, inventory, timeMinutes, npcState } = useLoopState();
+  const {
+    commitDecision,
+    setFlags,
+    flags,
+    inventory,
+    timeMinutes,
+    npcState,
+  } = useLoopState();
 
   const activeNode = useMemo(() => {
     if (!activeNodeId) return null;
@@ -100,17 +125,53 @@ export function DialogProvider({
   const endDialog = () => setActiveNodeId(null);
 
   const chooseResponse = (response: DialogResponse) => {
+    const node = activeNode;
+    if (!node) return;
+
     const ctx: DialogConditionContext = { flags, inventory, timeMinutes, npcState };
 
-    // if response is condition-gated, enforce it
+    // Enforce response gating
     if (!checkCondition(response.conditionId, ctx)) return;
 
-    advanceTime(response.timeCost);
+    // Also enforce node gating (optional; common pattern)
+    if (!checkCondition(node.conditionId, ctx)) return;
 
+    // ✅ Decision spec per node (stable id). Outcomes are the response labels.
+    // Note: We only include outcomes we know about (node.responses).
+    const spec: DecisionSpec = {
+      id: `dlg_${node.id}`,
+      title: `${node.npc}: ${node.id}`,
+      kind: "dialog",
+      outcomes: node.responses.map((r, idx) => ({
+        id: `r${idx}`,
+        title: r.label,
+        defaultTimeCost: r.timeCost,
+      })),
+    };
+
+    // Find the outcomeId for this exact response object
+    const idx = node.responses.indexOf(response);
+    const outcomeId = idx >= 0 ? `r${idx}` : `r_unknown`;
+
+    commitDecision({
+      spec,
+      outcomeId,
+      appliedTimeCost: response.timeCost,
+      meta: {
+        kind: "dialog",
+        npc: node.npc,
+        nodeId: node.id,
+        label: response.label,
+        next: response.next ?? null,
+      },
+    });
+
+    // Apply state mutation
     if (response.setFlags) {
       setFlags((prev) => response.setFlags!(prev));
     }
 
+    // Advance dialog
     if (response.next) {
       if (!nodes[response.next]) {
         console.warn(`Dialog node "${response.next}" not found`);

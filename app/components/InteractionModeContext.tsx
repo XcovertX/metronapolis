@@ -2,69 +2,109 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useExamine } from "./ExamineContext";
 
-export type InteractionMode = null | "walk" | "examine" | "talk" | "take";
+export type InteractionMode = "walk" | "examine" | "talk" | "take" | null;
 
-type InteractionModeCtx = {
+type InteractionModeValue = {
   mode: InteractionMode;
-  setMode: (m: InteractionMode) => void;
+
+  /** toggle a mode on/off (click same mode again => clears) */
   toggle: (m: Exclude<InteractionMode, null>) => void;
+
+  /** set mode directly */
+  setMode: (m: InteractionMode) => void;
+
+  /** clear to null */
   clear: () => void;
 
   /**
-   * Helper: only run the handler if the user is currently in that mode.
-   * Optionally auto-clear after success (default true).
+   * One-shot “arm” for examine.
+   * Useful when you want “tap Eye, then click something, then auto-disable”.
    */
-  attempt: (
-    requiredMode: Exclude<InteractionMode, null>,
-    handler: () => void,
-    opts?: { autoClear?: boolean }
-  ) => void;
+  armOnce: (m: Exclude<InteractionMode, null>) => void;
+
+  /** call when an interaction was consumed */
+  consume: () => void;
+
+  /** true if current mode is one-shot armed */
+  isOneShot: boolean;
 };
 
-const Ctx = createContext<InteractionModeCtx | undefined>(undefined);
+const InteractionModeContext = createContext<InteractionModeValue | undefined>(undefined);
+
+function cursorForMode(mode: InteractionMode): string {
+  switch (mode) {
+    case "examine":
+      return "zoom-in";
+    case "take":
+      return "copy"; // placeholder; swap to custom later
+    case "talk":
+      return "text"; // placeholder
+    case "walk":
+      return ""; // default
+    default:
+      return "";
+  }
+}
 
 export function InteractionModeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<InteractionMode>(null);
+  const [isOneShot, setIsOneShot] = useState(false);
+
+  // If you want “open examine popup consumes one-shot examine”, we can listen here.
+  // This keeps consumption behavior centralized.
+  const { active: examineActive } = useExamine();
 
   const toggle = (m: Exclude<InteractionMode, null>) => {
+    setIsOneShot(false);
     setMode((prev) => (prev === m ? null : m));
   };
 
-  const clear = () => setMode(null);
-
-  const attempt: InteractionModeCtx["attempt"] = (requiredMode, handler, opts) => {
-    if (mode !== requiredMode) return;
-    handler();
-    if (opts?.autoClear ?? true) setMode(null);
+  const clear = () => {
+    setIsOneShot(false);
+    setMode(null);
   };
 
-  // Cursor feedback
-  useEffect(() => {
-    const body = document.body;
-    const prev = body.style.cursor;
-    
-    if (mode === "walk") body.style.cursor = "crosshair";
-    else if (mode === "examine") body.style.cursor = "zoom-in";
-    else if (mode === "talk") body.style.cursor = "cell"; // placeholder “speech” vibe
-    else if (mode === "take") body.style.cursor = "grab";
-    else body.style.cursor = "";
+  const armOnce = (m: Exclude<InteractionMode, null>) => {
+    setIsOneShot(true);
+    setMode(m);
+  };
 
+  const consume = () => {
+    if (isOneShot) {
+      setIsOneShot(false);
+      setMode(null);
+    }
+  };
+
+  // Cursor behavior
+  useEffect(() => {
+    const prev = document.body.style.cursor;
+    const next = cursorForMode(mode);
+    document.body.style.cursor = next;
     return () => {
-      body.style.cursor = prev;
+      document.body.style.cursor = prev;
     };
   }, [mode]);
 
+  // ✅ Auto-consume one-shot examine after popup opens
+  useEffect(() => {
+    if (!examineActive) return;
+    if (mode === "examine") consume();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examineActive]);
+
   const value = useMemo(
-    () => ({ mode, setMode, toggle, clear, attempt }),
-    [mode]
+    () => ({ mode, toggle, setMode, clear, armOnce, consume, isOneShot }),
+    [mode, isOneShot]
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return <InteractionModeContext.Provider value={value}>{children}</InteractionModeContext.Provider>;
 }
 
 export function useInteractionMode() {
-  const ctx = useContext(Ctx);
+  const ctx = useContext(InteractionModeContext);
   if (!ctx) throw new Error("useInteractionMode must be used inside InteractionModeProvider");
   return ctx;
 }

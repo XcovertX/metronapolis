@@ -3,12 +3,12 @@
 
 import BaseScene from "./BaseScene";
 import { useMemo } from "react";
-import { useLoopState } from "../LoopStateContext";
+import { useLoopState} from "../LoopStateContext";
 import { useDialog } from "../DialogContext";
 import { TIME } from "@/app/game/timeRules";
 import { getEventOptions } from "@/app/game/events";
 import { canTraverse } from "@/app/game/movementRules";
-
+import type { DecisionSpec } from "../../game/events/decisionTypes";
 
 import {
   getScene,
@@ -37,7 +37,6 @@ function formatMoveLabel(dir: Direction, toTitle: string) {
 export default function GraphScene() {
   const {
     scene,
-    advanceTime,
     goToScene,
     timeMinutes,
     flags,
@@ -47,8 +46,8 @@ export default function GraphScene() {
     removeItem,
     npcState,
     setNpcState,
-    credits, 
-    addCredits, 
+    credits,
+    addCredits,
     spendCredits,
     pushMessage,
   } = useLoopState();
@@ -60,14 +59,32 @@ export default function GraphScene() {
     const opts: PlayerOption[] = [];
 
     // Event-driven ACTIONS (left)
+    // NOTE: if getEventOptions still returns PlayerOption with onSelect that calls advanceTime,
+    // it will still work (OptionsWindow has backwards compat).
+    // You can migrate those next to emit decision-based options too.
     opts.push(
       ...getEventOptions(
         { scene, timeMinutes, flags, inventory, npcState, credits },
-        { advanceTime, setFlags, addItem, removeItem, setNpcState, startDialog, addCredits, spendCredits, pushMessage}
+        {
+          // ⚠️ old action API dependencies (kept for compatibility)
+          // Prefer migrating these event options to `decision + afterCommit`.
+          advanceTime: () => {
+            // no-op placeholder if your getEventOptions signature requires it;
+            // If it MUST advance time internally, keep passing through from LoopStateContext instead.
+          },
+          setFlags,
+          addItem,
+          removeItem,
+          setNpcState,
+          startDialog,
+          addCredits,
+          spendCredits,
+          pushMessage,
+        } as any
       )
     );
 
-    // MOVEMENT (right D-pad)
+    // MOVEMENT (right D-pad) — ✅ now decision-based
     for (const dir of DIR_ORDER) {
       const next = getExit(scene, dir);
       if (!next) continue;
@@ -81,46 +98,83 @@ export default function GraphScene() {
       if (!allowed) continue;
 
       const nextDef = getScene(next);
-      const timeCost = dir === "up" || dir === "down" ? TIME.VERTICAL_MOVE : TIME.DEFAULT_ACTION;
+      const timeCost =
+        dir === "up" || dir === "down" ? TIME.VERTICAL_MOVE : TIME.DEFAULT_ACTION;
+
+      const NAV_SPEC: DecisionSpec = {
+        id: `nav_${scene}_via_${dir}`,
+        title: `Navigate: ${def.title}`,
+        kind: "navigate",
+        outcomes: [
+          {
+            id: `to_${next}`,
+            title: nextDef.title,
+            defaultTimeCost: timeCost,
+          },
+        ],
+      };
 
       opts.push({
         id: `move-${dir}-${next}`,
         kind: "move",
         dir,
         label: formatMoveLabel(dir, nextDef.title),
-        onSelect: () => {
-          advanceTime(timeCost);
+
+        decision: {
+          spec: NAV_SPEC,
+          outcomeId: `to_${next}`,
+          meta: { kind: "navigate", from: scene, to: next, dir },
+        },
+
+        afterCommit: () => {
           goToScene(next as SceneId);
         },
       });
     }
 
-    // Global wait (action)
+    // Global wait (action) — ✅ decision-based
+    const WAIT_SPEC: DecisionSpec = {
+      id: `wait_${scene}`,
+      title: "Wait",
+      kind: "custom",
+      outcomes: [
+        { id: "wait", title: "Wait", defaultTimeCost: TIME.DEFAULT_ACTION },
+      ],
+    };
+
     opts.push({
       id: "wait",
       kind: "action",
       label: "Wait.",
-      onSelect: () => advanceTime(TIME.DEFAULT_ACTION),
+      decision: {
+        spec: WAIT_SPEC,
+        outcomeId: "wait",
+        meta: { kind: "custom", action: "wait", scene },
+      },
+      // no afterCommit needed
     });
 
     return opts;
   }, [
     scene,
-    timeMinutes,
+    def.title,
     flags,
     inventory,
     npcState,
-    advanceTime,
+    timeMinutes,
+    credits,
     setFlags,
     addItem,
     removeItem,
     setNpcState,
     startDialog,
+    addCredits,
+    spendCredits,
+    pushMessage,
     goToScene,
   ]);
 
   const description = useMemo(() => {
-    // Keep this generic; if you want “cat is here” text, we can inject it via an event too.
     return [
       "The city feels close here—every decision costs time.",
       `You are at: ${def.title}.`,
@@ -133,10 +187,8 @@ export default function GraphScene() {
       title={def.title}
       background={def.background}
       description={description}
-      options={options} 
-      bgNative={{
-        w: 0,
-        h: 0
-      }}    />
+      options={options}
+      bgNative={{ w: 0, h: 0 }}
+    />
   );
 }

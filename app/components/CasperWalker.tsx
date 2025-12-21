@@ -6,7 +6,6 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrthographicCamera, useTexture } from "@react-three/drei";
 import type { LightingData, LightDef } from "../game/lighting/lightingTypes";
-import Background from "three/src/renderers/common/Background.js";
 import { SceneId } from "../game/sceneGraph";
 import type { WalkCollisionData } from "../game/navMeshs/types";
 
