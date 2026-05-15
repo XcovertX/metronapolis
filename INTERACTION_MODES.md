@@ -348,9 +348,10 @@ Always provide feedback for actions:
    - Custom cursor sprites for each mode
    - Animated cursors for feedback
 
-3. **Hotspot Highlighting**
-   - Show interactive areas when mode is active
-   - Different colors per mode
+3. **✅ Hotspot Highlighting** (IMPLEMENTED)
+   - Visual indicators show interactive areas when mode is active
+   - Different colors per mode (cyan, orange, blue, pink)
+   - See [`HOTSPOT_HIGHLIGHTING.md`](HOTSPOT_HIGHLIGHTING.md) for details
 
 4. **Mode Memory**
    - Remember last used mode per scene

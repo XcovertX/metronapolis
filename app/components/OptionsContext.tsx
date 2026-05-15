@@ -25,6 +25,14 @@ export type PlayerOption = {
 
   /** Which interaction mode(s) this option is available in. If undefined, always available. */
   modes?: Exclude<InteractionMode, null>[];
+
+  /** Visual hotspot position in image pixels (relative to background image dimensions) */
+  hotspot?: {
+    x: number;
+    y: number;
+    width?: number;
+    height?: number;
+  };
 };
 
 type OptionsContextValue = {

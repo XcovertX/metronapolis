@@ -99,6 +99,7 @@ export default function StreetFront() {
       label: "Walk east toward the alley.",
       onSelect: goToAlley,
       modes: ["walk"],
+      hotspot: { x: 1700, y: 540, width: 100, height: 150 },
     },
     {
       id: "street-front-to-sidewalk-south",
@@ -107,6 +108,7 @@ export default function StreetFront() {
       label: "Walk north to the sidewalk.",
       onSelect: goToSidewalk,
       modes: ["walk"],
+      hotspot: { x: 960, y: 200, width: 120, height: 80 },
     },
 
     // EXAMINE mode - Inspect environment
@@ -116,6 +118,7 @@ export default function StreetFront() {
       label: "Examine your apartment building.",
       onSelect: examineBuilding,
       modes: ["examine"],
+      hotspot: { x: 400, y: 300, width: 200, height: 300 },
     },
     {
       id: "street-examine-street",
@@ -123,6 +126,7 @@ export default function StreetFront() {
       label: "Examine the street pavement.",
       onSelect: examineStreet,
       modes: ["examine"],
+      hotspot: { x: 960, y: 800, width: 300, height: 100 },
     },
     {
       id: "street-examine-neon",
@@ -130,6 +134,7 @@ export default function StreetFront() {
       label: "Examine the neon signs.",
       onSelect: examineNeonSigns,
       modes: ["examine"],
+      hotspot: { x: 1400, y: 400, width: 150, height: 100 },
     },
     {
       id: "street-examine-car",
@@ -137,6 +142,7 @@ export default function StreetFront() {
       label: "Examine the parked car.",
       onSelect: examineCar,
       modes: ["examine"],
+      hotspot: { x: 1200, y: 650, width: 200, height: 120 },
     },
 
     // TALK mode - Attempt interaction
@@ -146,6 +152,7 @@ export default function StreetFront() {
       label: "Try to talk to a passerby.",
       onSelect: talkToPasserby,
       modes: ["talk"],
+      hotspot: { x: 800, y: 600, width: 80, height: 100 },
     },
   ];
 
@@ -157,6 +164,7 @@ export default function StreetFront() {
       label: "Pick up the credit chips near the gutter.",
       onSelect: takeCredits,
       modes: ["take"],
+      hotspot: { x: 1100, y: 900, width: 60, height: 40 },
     });
   }
 
