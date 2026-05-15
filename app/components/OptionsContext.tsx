@@ -8,6 +8,7 @@ import {
   type ReactNode,
   useCallback,
 } from "react";
+import type { InteractionMode } from "./InteractionModeContext";
 
 export type OptionKind = "move" | "action";
 
@@ -21,6 +22,9 @@ export type PlayerOption = {
 
   /** optional - useful later for keybinds / UI icons */
   dir?: "n" | "e" | "s" | "w" | "up" | "down";
+
+  /** Which interaction mode(s) this option is available in. If undefined, always available. */
+  modes?: Exclude<InteractionMode, null>[];
 };
 
 type OptionsContextValue = {
