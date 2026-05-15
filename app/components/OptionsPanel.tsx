@@ -253,12 +253,19 @@ export default function OptionsWindow() {
     const actions: PlayerOption[] = [];
     const moves: PlayerOption[] = [];
     for (const opt of options) {
+      // Filter by interaction mode if specified
+      if (opt.modes && opt.modes.length > 0) {
+        if (!mode || !opt.modes.includes(mode)) {
+          continue; // Skip this option if mode doesn't match
+        }
+      }
+      
       const kind = opt.kind ?? "action";
       if (kind === "move") moves.push(opt);
       else actions.push(opt);
     }
     return { actions, moves };
-  }, [options]);
+  }, [options, mode]);
 
   // Don’t render if nothing to show
   if (!actions.length && !moves.length) return null;
