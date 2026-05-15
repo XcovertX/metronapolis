@@ -12,6 +12,8 @@ import NavMeshEditor from "../NavMeshEditor";
 import LightingEditor from "../LightingEditor";
 import { useLoopState } from "../LoopStateContext";
 import NpcWalker from "../NpcWalker";
+import HotspotHighlight from "../HotspotHighlight";
+import { useInteractionMode } from "../InteractionModeContext";
 
 type BaseSceneProps = {
   id: string;
@@ -36,6 +38,7 @@ export default function BaseScene({
 }: BaseSceneProps) {
   const { setOptions, clearOptions } = useOptions();
   const { goToScene } = useLoopState();
+  const { mode } = useInteractionMode();
 
   const navmesh = NAVMESH_BY_SCENE[id];
   const lighting = LIGHTING_BY_SCENE[id];
@@ -68,6 +71,20 @@ export default function BaseScene({
 
   // Casper wants WORLD coords; your BaseScene startPosition is IMAGE px.
   const startWorld = useMemo(() => imgPxToWorld(startPosition, bgNative), [startPosition, bgNative]);
+
+  // Filter options that should show hotspots based on current mode
+  const visibleHotspots = useMemo(() => {
+    if (!mode) return [];
+    
+    return options.filter((opt) => {
+      // Only show hotspots for options that have hotspot data
+      if (!opt.hotspot) return false;
+      
+      // Show if option has no mode restriction, or if current mode matches
+      if (!opt.modes) return true;
+      return opt.modes.includes(mode);
+    });
+  }, [options, mode]);
 
   return (
     <>
@@ -125,6 +142,21 @@ export default function BaseScene({
               }}
             />
           )}
+
+          {/* Hotspot highlights - only visible when a mode is active */}
+          {visibleHotspots.map((opt) => (
+            <HotspotHighlight
+              key={opt.id}
+              x={opt.hotspot!.x}
+              y={opt.hotspot!.y}
+              width={opt.hotspot!.width}
+              height={opt.hotspot!.height}
+              mode={mode!}
+              label={opt.label}
+              containerRef={stageRef}
+              bgNative={bgNative}
+            />
+          ))}
 
           {/* ✅ New structure: SceneView owns Canvas/camera/input; Casper is just an entity */}
           {navmesh && (

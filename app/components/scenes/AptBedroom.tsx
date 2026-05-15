@@ -105,6 +105,7 @@ export default function AptBedroom() {
       label: "Step into the living room.",
       onSelect: goLiving,
       modes: ["walk"],
+      hotspot: { x: 580, y: 316, width: 60, height: 120 },
     },
 
     // EXAMINE mode - Inspect objects
@@ -114,6 +115,7 @@ export default function AptBedroom() {
       label: "Examine the window.",
       onSelect: examineWindow,
       modes: ["examine"],
+      hotspot: { x: 120, y: 180, width: 100, height: 80 },
     },
     {
       id: "bedroom-examine-bed",
@@ -121,6 +123,7 @@ export default function AptBedroom() {
       label: "Examine the bed.",
       onSelect: examineBed,
       modes: ["examine"],
+      hotspot: { x: 480, y: 420, width: 120, height: 80 },
     },
     {
       id: "bedroom-examine-desk",
@@ -128,6 +131,7 @@ export default function AptBedroom() {
       label: "Examine the desk.",
       onSelect: examineDesk,
       modes: ["examine"],
+      hotspot: { x: 180, y: 380, width: 100, height: 80 },
     },
   ];
 
@@ -140,6 +144,7 @@ export default function AptBedroom() {
         label: "Examine the cat.",
         onSelect: examineCat,
         modes: ["examine"],
+        hotspot: { x: 380, y: 280, width: 80, height: 60 },
       },
       {
         id: "bedroom-talk-cat",
@@ -147,6 +152,7 @@ export default function AptBedroom() {
         label: "Try to talk to the cat.",
         onSelect: talkToCat,
         modes: ["talk"],
+        hotspot: { x: 380, y: 280, width: 80, height: 60 },
       }
     );
   }
@@ -159,6 +165,7 @@ export default function AptBedroom() {
       label: "Take the notebook from the desk.",
       onSelect: takeNotebook,
       modes: ["take"],
+      hotspot: { x: 180, y: 380, width: 60, height: 40 },
     });
   }
 
