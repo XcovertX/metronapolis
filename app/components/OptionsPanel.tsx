@@ -255,8 +255,13 @@ export default function OptionsWindow() {
     for (const opt of options) {
       // Filter by interaction mode if specified
       if (opt.modes && opt.modes.length > 0) {
-        if (!mode || !opt.modes.includes(mode)) {
-          continue; // Skip this option if mode doesn't match
+        // If a mode is required but no mode is active, skip this option
+        if (!mode) {
+          continue;
+        }
+        // If a mode is active but doesn't match, skip this option
+        if (!opt.modes.includes(mode)) {
+          continue;
         }
       }
       
@@ -267,8 +272,8 @@ export default function OptionsWindow() {
     return { actions, moves };
   }, [options, mode]);
 
-  // Don’t render if nothing to show
-  if (!actions.length && !moves.length) return null;
+  // Show panel even if no options (to display mode selector)
+  // if (!actions.length && !moves.length) return null;
 
   const byDir = (dir: string) => moves.find((m) => m.dir === dir);
 
@@ -355,7 +360,7 @@ export default function OptionsWindow() {
                     borderRadius: 10,
                     border: "1px solid rgba(0,255,210,0.22)",
                     background: "rgba(0,0,0,0.55)",
-                    color: "rgba(245,245,245,0.92)", 
+                    color: "rgba(245,245,245,0.92)",
                     fontSize: 12,
                     letterSpacing: 0.5,
                     cursor: "pointer",
@@ -366,7 +371,9 @@ export default function OptionsWindow() {
                 </button>
               ))
             ) : (
-              <div style={{ fontSize: 12, opacity: 0.6 }}>(none)</div>
+              <div style={{ fontSize: 11, opacity: 0.6, padding: "0.5rem", textAlign: "center" }}>
+                {mode ? "(no actions available)" : "Select an interaction mode above"}
+              </div>
             )}
           </div>
         </HudPanel>
